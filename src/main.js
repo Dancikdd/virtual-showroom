@@ -86,10 +86,10 @@ loader.load('/models/corridor_hotel.glb', (gltf) => {
     const box = new THREE.Box3().setFromObject(original);
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
-    corridorLength = size.z;
+    corridorLength = size.x + 500;
 
     const EYE_HEIGHT = size.y * 0.55;
-    camera.position.set(center.x, box.min.y + EYE_HEIGHT, center.z + 1800);
+    camera.position.set(center.x, box.min.y + EYE_HEIGHT, center.z + 1000);
     startZ = camera.position.z;
 
     for (let i = 0; i < 3; i++) {
@@ -125,7 +125,7 @@ function animate() {
     camera.rotation.order = 'YXZ';
     camera.rotation.y += (targetYaw - camera.rotation.y) * 0.05;
     camera.rotation.x += (targetPitch - camera.rotation.x) * 0.05;
-
+    
     camera.position.z -= velocity * 5;
     velocity *= 0.9;
     if (Math.abs(velocity) < 0.001) velocity = 0;

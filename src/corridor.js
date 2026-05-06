@@ -43,7 +43,7 @@ export function applyCorridor(corridor, scene) {
     });
 
     // Tavan
-    const ceilingGeo = new THREE.PlaneGeometry(size.x * 2, size.z * 2);
+    const ceilingGeo = new THREE.PlaneGeometry(size.x * 2, 99999);
     const ceilingMat = new THREE.MeshStandardMaterial({ color: 0xf5f1ed, roughness: 0.8, metalness: 0.0 });
     const ceilingMesh = new THREE.Mesh(ceilingGeo, ceilingMat);
     ceilingMesh.rotation.x = Math.PI / 2;
