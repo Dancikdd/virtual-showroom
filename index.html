@@ -1,13 +1,42 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="ro">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>virtual-showroom</title>
+    <title>Coridor Hotel - Viewer</title>
+    <link rel="stylesheet" href="src/style.css">
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
+    <canvas id="canvas"></canvas>
+    
+    <div class="ui-container">
+        <div class="info-panel">
+            <h1>Coridor Hotel</h1>
+            <div class="controls">
+                <p><strong>Navigare:</strong></p>
+                <ul>
+                    <li><kbd>W</kbd> - Merge înainte (un pas)</li>
+                    <li><kbd>S</kbd> - Merge înapoi (un pas)</li>
+                    <li><kbd>Click dreapta</kbd> - Uită-te în jur</li>
+                </ul>
+            </div>
+            <div class="position-display">
+                <p>Poziție: <span id="position">0.00, 0.00, 0.00</span></p>
+                <p>Direcție: <span id="direction">0°</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@r128/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@r128/examples/jsm/"
+      }
+    }
+    </script>
+    <script type="module" src="src/main.js"></script>
   </body>
 </html>
