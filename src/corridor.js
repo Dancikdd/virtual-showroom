@@ -49,7 +49,7 @@ export function applyCorridor(corridor, scene) {
     ceilingMesh.rotation.x = Math.PI / 2;
     ceilingMesh.position.set(center.x, box.max.y, center.z);
     ceilingMesh.receiveShadow = true;
-    scene.add(ceilingMesh);
+    corridor.add(ceilingMesh);
 
     return { box, center, size };
 }
