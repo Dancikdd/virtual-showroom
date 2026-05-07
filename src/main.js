@@ -56,6 +56,28 @@ cursor.style.cssText = `
 document.body.appendChild(cursor);
 document.body.style.cursor = 'none';
 
+// ====== RAYCASTER INSPECTOR ======
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+const infoBox = document.createElement('div');
+infoBox.style.cssText = `
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.75);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 13px;
+    pointer-events: none;
+    z-index: 1000;
+    white-space: nowrap;
+`;
+document.body.appendChild(infoBox);
+
 // ====== MOUSE ======
 let mouseX = 0;
 let mouseY = 0;
@@ -65,6 +87,8 @@ document.addEventListener('mousemove', (e) => {
     mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
     cursor.style.left = e.clientX + 'px';
     cursor.style.top = e.clientY + 'px';
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 });
 
 // ====== SCROLL ======
@@ -101,47 +125,31 @@ loader.load('/models/corridor_hotel.glb', (gltf) => {
     }
 
     // ====== PEREȚI RAMIFICAȚIE ======
-const wallHeight = size.y;
-const wallWidth = size.y * 1.2; // lățimea ramificației
+    const wallHeight = size.y;
+    const wallWidth = size.y * 1.2;
 
-const wallMat = new THREE.MeshStandardMaterial({
-    color: 0xe8dcc8,
-    roughness: 0.85,
-    metalness: 0.0,
-    side: THREE.DoubleSide
-});
-
-// Perete STÂNGA
-const wallLeft = new THREE.Mesh(
-    new THREE.PlaneGeometry(wallWidth, wallHeight),
-    wallMat
-);
-wallLeft.position.set(
-    center.x - 150,   // lateral stânga
-    box.min.y + 150, // înălțime
-    -500                         
-);
-wallLeft.rotation.y = Math.PI / 2;
-scene.add(wallLeft);
-
-// Perete DREAPTA
-const wallRight = new THREE.Mesh(
-    new THREE.PlaneGeometry(wallWidth, wallHeight),
-    wallMat
-);
-wallRight.position.set(
-    center.x + 150,   // lateral dreapta
-    box.min.y + 150, // înălțime
-    -500
-);
-wallRight.rotation.y = Math.PI / 2;
-scene.add(wallRight);
-    
-    gltf.scene.traverse((node) => {
-        if (node.isMesh) {
-            console.log(`Mesh: "${node.name}" | Poziție:`, node.getWorldPosition(new THREE.Vector3()));
-        }
+    const wallMat = new THREE.MeshStandardMaterial({
+        color: 0xe8dcc8,
+        roughness: 0.85,
+        metalness: 0.0,
+        side: THREE.DoubleSide
     });
+
+    const wallLeft = new THREE.Mesh(
+        new THREE.PlaneGeometry(wallWidth, wallHeight),
+        wallMat
+    );
+    wallLeft.position.set(center.x - 150, box.min.y + 150, -500);
+    wallLeft.rotation.y = Math.PI / 2;
+    scene.add(wallLeft);
+
+    const wallRight = new THREE.Mesh(
+        new THREE.PlaneGeometry(wallWidth, wallHeight),
+        wallMat
+    );
+    wallRight.position.set(center.x + 150, box.min.y + 150, -500);
+    wallRight.rotation.y = Math.PI / 2;
+    scene.add(wallRight);
 
     console.log('✓ Model încărcat! corridorLength:', corridorLength);
 },
@@ -168,7 +176,7 @@ function animate() {
     camera.rotation.order = 'YXZ';
     camera.rotation.y += (targetYaw - camera.rotation.y) * 0.05;
     camera.rotation.x += (targetPitch - camera.rotation.x) * 0.05;
-    
+
     camera.position.z -= velocity * 5;
     velocity *= 0.9;
     if (Math.abs(velocity) < 0.001) velocity = 0;
@@ -182,6 +190,17 @@ function animate() {
                 c.position.z += corridorLength * 3;
             }
         });
+    }
+
+    // ====== RAYCASTER UPDATE ======
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children, true);
+    if (intersects.length > 0) {
+        const hit = intersects[0];
+        const pos = hit.point;
+        infoBox.textContent = `Mesh: "${hit.object.name}" | X: ${pos.x.toFixed(0)} Y: ${pos.y.toFixed(0)} Z: ${pos.z.toFixed(0)}`;
+    } else {
+        infoBox.textContent = 'Nimic selectat';
     }
 
     renderer.render(scene, camera);

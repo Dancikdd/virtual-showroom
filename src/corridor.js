@@ -18,7 +18,10 @@ export function applyCorridor(corridor, scene) {
         if (node.isMesh) {
             node.castShadow = true;
             node.receiveShadow = true;
-
+            
+        if (node.name === 'Plane020_teto_0') {
+            node.visible = false;
+        }
             const n = node.name.toLowerCase();
             let mat;
 
