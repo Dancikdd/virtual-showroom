@@ -103,7 +103,7 @@ const corridors = [];
 let corridorLength = 0;
 let startZ = 0;
 
-loader.load('/models/corridor_hotel.glb', (gltf) => {
+loader.load('/models/corridor_hotel2.glb', (gltf) => {
     const original = gltf.scene;
     original.rotation.y = Math.PI / 2;
 
@@ -124,32 +124,6 @@ loader.load('/models/corridor_hotel.glb', (gltf) => {
         corridors.push(clone);
     }
 
-    // ====== PEREȚI RAMIFICAȚIE ======
-    const wallHeight = size.y;
-    const wallWidth = size.y * 1.2;
-
-    const wallMat = new THREE.MeshStandardMaterial({
-        color: 0xe8dcc8,
-        roughness: 0.85,
-        metalness: 0.0,
-        side: THREE.DoubleSide
-    });
-
-    const wallLeft = new THREE.Mesh(
-        new THREE.PlaneGeometry(wallWidth, wallHeight),
-        wallMat
-    );
-    wallLeft.position.set(center.x - 150, box.min.y + 150, -500);
-    wallLeft.rotation.y = Math.PI / 2;
-    scene.add(wallLeft);
-
-    const wallRight = new THREE.Mesh(
-        new THREE.PlaneGeometry(wallWidth, wallHeight),
-        wallMat
-    );
-    wallRight.position.set(center.x + 150, box.min.y + 150, -500);
-    wallRight.rotation.y = Math.PI / 2;
-    scene.add(wallRight);
 
     console.log('✓ Model încărcat! corridorLength:', corridorLength);
 },
