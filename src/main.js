@@ -100,6 +100,49 @@ loader.load('/models/corridor_hotel.glb', (gltf) => {
         corridors.push(clone);
     }
 
+    // ====== PEREȚI RAMIFICAȚIE ======
+const wallHeight = size.y;
+const wallWidth = size.y * 1.2; // lățimea ramificației
+
+const wallMat = new THREE.MeshStandardMaterial({
+    color: 0xe8dcc8,
+    roughness: 0.85,
+    metalness: 0.0,
+    side: THREE.DoubleSide
+});
+
+// Perete STÂNGA
+const wallLeft = new THREE.Mesh(
+    new THREE.PlaneGeometry(wallWidth, wallHeight),
+    wallMat
+);
+wallLeft.position.set(
+    center.x - 150,   // lateral stânga
+    box.min.y + 150, // înălțime
+    -500                         
+);
+wallLeft.rotation.y = Math.PI / 2;
+scene.add(wallLeft);
+
+// Perete DREAPTA
+const wallRight = new THREE.Mesh(
+    new THREE.PlaneGeometry(wallWidth, wallHeight),
+    wallMat
+);
+wallRight.position.set(
+    center.x + 150,   // lateral dreapta
+    box.min.y + 150, // înălțime
+    -500
+);
+wallRight.rotation.y = Math.PI / 2;
+scene.add(wallRight);
+    
+    gltf.scene.traverse((node) => {
+        if (node.isMesh) {
+            console.log(`Mesh: "${node.name}" | Poziție:`, node.getWorldPosition(new THREE.Vector3()));
+        }
+    });
+
     console.log('✓ Model încărcat! corridorLength:', corridorLength);
 },
 (progress) => {
