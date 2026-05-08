@@ -107,26 +107,34 @@ loader.load('/models/corridor_hotel2.glb', (gltf) => {
     const original = gltf.scene;
     original.rotation.y = Math.PI / 2;
 
+    // Forțează actualizarea matricei înainte de a calcula box-ul
+    original.updateMatrixWorld(true);
+
     const box = new THREE.Box3().setFromObject(original);
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
-    corridorLength = size.x + 500;
+
+    // Acum size.z e lungimea reală a coridorului pe axa de mers
+    corridorLength = size.z * 0.96; // Mică ajustare pentru a preveni gap-uri vizibile
+
+    console.log('Size după rotație:', size);
+    console.log('corridorLength (Z):', corridorLength);
 
     const EYE_HEIGHT = size.y * 0.55;
-    camera.position.set(center.x, box.min.y + EYE_HEIGHT, center.z + 1000);
+    camera.position.set(center.x - 270, box.min.y + EYE_HEIGHT, center.z + corridorLength + 1700);
     startZ = camera.position.z;
 
     for (let i = 0; i < 3; i++) {
         const clone = original.clone();
-        clone.position.z = -i * corridorLength;
+        clone.position.z = center.z - i * corridorLength; 
         scene.add(clone);
         applyCorridor(clone, scene);
         corridors.push(clone);
     }
 
-
     console.log('✓ Model încărcat! corridorLength:', corridorLength);
 },
+
 (progress) => {
     const percent = Math.round((progress.loaded / progress.total) * 100);
     console.log(`Încărcare: ${percent}%`);
@@ -155,13 +163,15 @@ function animate() {
     velocity *= 0.9;
     if (Math.abs(velocity) < 0.001) velocity = 0;
 
+    const totalLength = corridorLength * corridors.length;
+
     if (corridorLength > 0) {
         corridors.forEach((c) => {
-            if (c.position.z - camera.position.z > corridorLength * 1.5) {
-                c.position.z -= corridorLength * 3;
+            if (c.position.z - camera.position.z > totalLength * 0.6) {
+                c.position.z -= totalLength;
             }
-            if (camera.position.z - c.position.z > corridorLength * 1.5) {
-                c.position.z += corridorLength * 3;
+            if (camera.position.z - c.position.z > totalLength * 0.6) {
+                c.position.z += totalLength;
             }
         });
     }

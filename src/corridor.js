@@ -42,17 +42,15 @@ export function applyCorridor(corridor, scene) {
             }
 
             node.material = mat;
+
+            if (n.includes('tavan') || n.includes('ceiling') || n.includes('plafon')) {
+                node.position.y -= 18;
+            }
+
+            if (n.includes('bec1') || n.includes('bec2') || n.includes('bucal')) {
+                node.position.y -= 100;
+            }
         }
     });
 
-    // Tavan
-    const ceilingGeo = new THREE.PlaneGeometry(size.x * 2, 99999);
-    const ceilingMat = new THREE.MeshStandardMaterial({ color: 0xf5f1ed, roughness: 0.8, metalness: 0.0 });
-    const ceilingMesh = new THREE.Mesh(ceilingGeo, ceilingMat);
-    ceilingMesh.rotation.x = Math.PI / 2;
-    ceilingMesh.position.set(center.x, box.max.y, center.z);
-    ceilingMesh.receiveShadow = true;
-    corridor.add(ceilingMesh);
-
-    return { box, center, size };
 }
