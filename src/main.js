@@ -138,7 +138,7 @@ loader.load(
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
 
-    const eyeHeight = size.y * 0.55;
+    const eyeHeight = size.y * 0.65;
 
     camera.position.set(
       box.max.x - 50,
@@ -152,9 +152,32 @@ loader.load(
 
     initialYaw = camera.rotation.y;
 
+    // ===== PERETE SPAWN =====
+    const wallGeometry = new THREE.BoxGeometry(5, size.y, size.z * 2);
+    const wallMaterial = new THREE.MeshStandardMaterial({
+      color: 0xf0ebe3,
+      roughness: 0.9,
+      metalness: 0.0,
+      emissive: 0xf0ebe3,
+      emissiveIntensity: 0.05
+    });
+    const spawnWall = new THREE.Mesh(wallGeometry, wallMaterial);
+    spawnWall.position.set(
+      box.max.x,
+      box.min.y + size.y / 2,
+      center.z
+    );
+    spawnWall.receiveShadow = true;
+    spawnWall.castShadow = true;
+    scene.add(spawnWall);
+
+    // lumină pentru peretele din spate
+    const spawnLight = new THREE.PointLight(0xffe8d6, 1.5, 300);
+    spawnLight.position.set(box.max.x - 30, box.min.y + eyeHeight, center.z);
+    scene.add(spawnLight);
+
     console.log('✓ Corridor loaded');
     console.log('Spawn:', camera.position);
-    console.log('Initial yaw:', initialYaw);
     console.log('Box min:', box.min);
     console.log('Box max:', box.max);
     console.log('Size:', size);
@@ -186,7 +209,7 @@ window.addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
 
-  const targetYaw = initialYaw + (-mouseX * Math.PI * 0.4);
+  const targetYaw = initialYaw + (-mouseX * Math.PI * 0.3);
   const targetPitch = -mouseY * Math.PI * 0.15;
 
   camera.rotation.order = 'YXZ';
