@@ -22,10 +22,8 @@ const renderer = new THREE.WebGLRenderer({
 });
 
 renderer.setSize(window.innerWidth, window.innerHeight);
-
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
-
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 
@@ -110,10 +108,100 @@ document.addEventListener('mousemove', (e) => {
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 });
 
+// ===== NAVIGARE =====
+let currentStop = 0;
+let targetPosition = null;
+let isMoving = false;
+let stops = [];
+let centerGlobal = new THREE.Vector3();
+let initialYaw = Math.PI / 2;
+
+// ===== UI BUTOANE =====
+const navContainer = document.createElement('div');
+navContainer.style.cssText = `
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1000;
+`;
+document.body.appendChild(navContainer);
+
+const btnStyle = `
+  width: 48px;
+  height: 48px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 8px;
+  color: white;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, border 0.2s;
+  user-select: none;
+`;
+
+const btnBack = document.createElement('div');
+btnBack.style.cssText = btnStyle;
+btnBack.innerHTML = '&#8593;';
+
+const btnForward = document.createElement('div');
+btnForward.style.cssText = btnStyle;
+btnForward.innerHTML = '&#8595;';
+
+navContainer.appendChild(btnBack);
+navContainer.appendChild(btnForward);
+
+function updateButtons() {
+  btnBack.style.opacity = currentStop < stops.length - 1 ? '1' : '0.25';
+  btnBack.style.pointerEvents = currentStop < stops.length - 1 ? 'auto' : 'none';
+  btnForward.style.opacity = currentStop > 0 ? '1' : '0.25';
+  btnForward.style.pointerEvents = currentStop > 0 ? 'auto' : 'none';
+}
+
+function moveTo(index) {
+  if (isMoving) return;
+  currentStop = index;
+  targetPosition = stops[currentStop].clone();
+  isMoving = true;
+
+  // ultimul stop = în lift -> întoarce 180°
+  if (index === stops.length - 1) {
+    initialYaw = Math.PI / 2 + Math.PI;
+  } else {
+    initialYaw = Math.PI / 2;
+  }
+
+  updateButtons();
+}
+
+btnBack.addEventListener('click', () => {
+  if (currentStop < stops.length - 1) moveTo(currentStop + 1);
+});
+
+btnForward.addEventListener('click', () => {
+  if (currentStop > 0) moveTo(currentStop - 1);
+});
+
+[btnBack, btnForward].forEach((btn) => {
+  btn.addEventListener('mouseenter', () => {
+    btn.style.background = 'rgba(255,255,255,0.2)';
+    btn.style.border = '2px solid rgba(255,255,255,0.7)';
+  });
+  btn.addEventListener('mouseleave', () => {
+    btn.style.background = 'rgba(0,0,0,0.6)';
+    btn.style.border = '2px solid rgba(255,255,255,0.3)';
+  });
+});
+
 // ===== LOAD MODEL =====
 const loader = new GLTFLoader();
 let corridor = null;
-let initialYaw = Math.PI / 2;
 
 loader.load(
   '/models/corridor.glb',
@@ -133,24 +221,27 @@ loader.load(
     applyCorridor(corridor, scene);
     scene.add(corridor);
 
-    // ===== CAMERA SPAWN =====
     const box = new THREE.Box3().setFromObject(corridor);
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
 
     const eyeHeight = size.y * 0.65;
+    centerGlobal.copy(center);
 
-    camera.position.set(
-      box.max.x - 50,
-      box.min.y + eyeHeight,
-      center.z
-    );
+    // ===== STOPS CUSTOM =====
+    stops = [
+      new THREE.Vector3(box.max.x - 50,  box.min.y + eyeHeight, center.z), // stop 0 - start
+      new THREE.Vector3(box.max.x - 300, box.min.y + eyeHeight, center.z), // stop 1
+      new THREE.Vector3(box.max.x - 600, box.min.y + eyeHeight, center.z), // stop 2
+      new THREE.Vector3(box.max.x - 900, box.min.y + eyeHeight, center.z), // stop 3 - lift
+    ];
 
+    currentStop = 0;
+    camera.position.copy(stops[0]);
     camera.rotation.order = 'YXZ';
     camera.rotation.y = Math.PI / 2;
     camera.rotation.x = 0;
-
-    initialYaw = camera.rotation.y;
+    initialYaw = Math.PI / 2;
 
     // ===== PERETE SPAWN =====
     const wallGeometry = new THREE.BoxGeometry(5, size.y, size.z * 2);
@@ -159,35 +250,30 @@ loader.load(
       roughness: 0.9,
       metalness: 0.0,
       emissive: 0xf0ebe3,
-      emissiveIntensity: 0.05
+      emissiveIntensity: 0.1,
     });
     const spawnWall = new THREE.Mesh(wallGeometry, wallMaterial);
-    spawnWall.position.set(
-      box.max.x,
-      box.min.y + size.y / 2,
-      center.z
-    );
+    spawnWall.position.set(box.max.x, box.min.y + size.y / 2, center.z);
     spawnWall.receiveShadow = true;
     spawnWall.castShadow = true;
     scene.add(spawnWall);
 
-    // lumină pentru peretele din spate
     const spawnLight = new THREE.PointLight(0xffe8d6, 1.5, 300);
     spawnLight.position.set(box.max.x - 30, box.min.y + eyeHeight, center.z);
     scene.add(spawnLight);
 
+    updateButtons();
+
     console.log('✓ Corridor loaded');
-    console.log('Spawn:', camera.position);
-    console.log('Box min:', box.min);
-    console.log('Box max:', box.max);
-    console.log('Size:', size);
+    console.log('box.max.x:', box.max.x);
+    console.log('box.min.y:', box.min.y);
+    console.log('eyeHeight:', eyeHeight);
+    console.log('Stops:', stops);
   },
 
   (progress) => {
     if (progress.total) {
-      const percent = Math.round(
-        (progress.loaded / progress.total) * 100
-      );
+      const percent = Math.round((progress.loaded / progress.total) * 100);
       infoBox.textContent = `Încărcare: ${percent}%`;
     }
   },
@@ -209,21 +295,25 @@ window.addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
 
-  const targetYaw = initialYaw + (-mouseX * Math.PI * 0.3);
+  if (isMoving && targetPosition) {
+    camera.position.lerp(targetPosition, 0.08);
+
+    if (camera.position.distanceTo(targetPosition) < 1) {
+      camera.position.copy(targetPosition);
+      isMoving = false;
+    }
+  }
+
+  const currentTargetYaw = initialYaw + (-mouseX * Math.PI * 0.15);
   const targetPitch = -mouseY * Math.PI * 0.15;
 
   camera.rotation.order = 'YXZ';
-  camera.rotation.y += (targetYaw - camera.rotation.y) * 0.05;
+  camera.rotation.y += (currentTargetYaw - camera.rotation.y) * 0.05;
   camera.rotation.x += (targetPitch - camera.rotation.x) * 0.05;
 
-  // ===== RAYCASTER =====
   if (corridor) {
     raycaster.setFromCamera(mouse, camera);
-
-    const intersects = raycaster.intersectObjects(
-      corridor.children,
-      true
-    );
+    const intersects = raycaster.intersectObjects(corridor.children, true);
 
     if (intersects.length > 0) {
       const hit = intersects[0];
