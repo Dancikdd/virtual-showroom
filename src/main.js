@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { applyCorridor } from './corridor.js';
+import { DoorSystem } from './doorSystem.js';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1410);
@@ -56,40 +57,22 @@ scene.add(skyLight);
 
 // ===== CURSOR =====
 const cursor = document.createElement('div');
-cursor.style.cssText = `
-  position: fixed;
-  width: 16px;
-  height: 16px;
-  background: white;
-  border-radius: 50%;
-  pointer-events: none;
-  transform: translate(-50%, -50%);
-  z-index: 999;
-  mix-blend-mode: difference;
-`;
+cursor.id = 'cursor';
 document.body.appendChild(cursor);
 document.body.style.cursor = 'none';
+
+document.addEventListener('mousemove', (e) => {
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top = e.clientY + 'px';
+});
 
 // ===== RAYCASTER =====
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
+// ===== INFO BOX =====
 const infoBox = document.createElement('div');
-infoBox.style.cssText = `
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0,0,0,0.75);
-  color: #fff;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-family: monospace;
-  font-size: 13px;
-  pointer-events: none;
-  z-index: 1000;
-  white-space: nowrap;
-`;
+infoBox.id = 'info-box';
 infoBox.textContent = 'Se încarcă modelul...';
 document.body.appendChild(infoBox);
 
@@ -116,47 +99,55 @@ let stops = [];
 let centerGlobal = new THREE.Vector3();
 let initialYaw = Math.PI / 2;
 
-// ===== UI BUTOANE =====
+// ===== UI NAVIGARE =====
 const navContainer = document.createElement('div');
-navContainer.style.cssText = `
-  position: fixed;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  z-index: 1000;
-`;
+navContainer.id = 'nav-container';
 document.body.appendChild(navContainer);
 
-const btnStyle = `
-  width: 48px;
-  height: 48px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 2px solid rgba(255,255,255,0.3);
-  border-radius: 8px;
-  color: white;
-  font-size: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s, border 0.2s;
-  user-select: none;
-`;
-
 const btnBack = document.createElement('div');
-btnBack.style.cssText = btnStyle;
-btnBack.innerHTML = '&#8593;';
+btnBack.className = 'nav-btn';
+btnBack.innerHTML = '&#9650;';
 
 const btnForward = document.createElement('div');
-btnForward.style.cssText = btnStyle;
-btnForward.innerHTML = '&#8595;';
+btnForward.className = 'nav-btn';
+btnForward.innerHTML = '&#9660;';
 
 navContainer.appendChild(btnBack);
 navContainer.appendChild(btnForward);
 
+// ===== UI DOOR ACTIONS =====
+const doorActions = document.createElement('div');
+doorActions.id = 'door-actions';
+document.body.appendChild(doorActions);
+
+const btnEnter = document.createElement('div');
+btnEnter.className = 'door-btn';
+btnEnter.innerHTML = '&#9650;';  
+
+const btnClose = document.createElement('div');
+btnClose.className = 'door-btn';
+btnClose.innerHTML = '&#9660;';  
+
+doorActions.appendChild(btnEnter);
+doorActions.appendChild(btnClose);
+
+btnClose.addEventListener('click', () => {
+  if (doorSystem && doorSystem.lastOpenedDoor) {
+    const door = doorSystem.lastOpenedDoor;
+    door.state = 'closed';
+    door.targetAngle = 0;
+    door.light.intensity = 0;
+    doorSystem.lastOpenedDoor = null;
+  }
+  moveTo(currentStop);
+  doorActions.style.opacity = '0';
+  doorActions.style.pointerEvents = 'none';
+
+  navContainer.style.opacity = '1';
+  navContainer.style.pointerEvents = 'auto';
+});
+
+// ===== FUNCTII NAVIGARE =====
 function updateButtons() {
   btnBack.style.opacity = currentStop < stops.length - 1 ? '1' : '0.25';
   btnBack.style.pointerEvents = currentStop < stops.length - 1 ? 'auto' : 'none';
@@ -170,7 +161,6 @@ function moveTo(index) {
   targetPosition = stops[currentStop].clone();
   isMoving = true;
 
-  // ultimul stop = în lift -> întoarce 180°
   if (index === stops.length - 1) {
     initialYaw = Math.PI / 2 + Math.PI;
   } else {
@@ -188,15 +178,26 @@ btnForward.addEventListener('click', () => {
   if (currentStop > 0) moveTo(currentStop - 1);
 });
 
-[btnBack, btnForward].forEach((btn) => {
-  btn.addEventListener('mouseenter', () => {
-    btn.style.background = 'rgba(255,255,255,0.2)';
-    btn.style.border = '2px solid rgba(255,255,255,0.7)';
-  });
-  btn.addEventListener('mouseleave', () => {
-    btn.style.background = 'rgba(0,0,0,0.6)';
-    btn.style.border = '2px solid rgba(255,255,255,0.3)';
-  });
+// ===== DOOR SYSTEM =====
+let doorSystem = null;
+
+window.addEventListener('click', () => {
+  if (doorSystem) {
+    doorSystem.onClick(raycaster, mouse, camera, (doorPos) => {
+      const offsetX = 80;
+      const targetZ = doorPos.z > 0 ? doorPos.z - offsetX : doorPos.z + offsetX;
+
+      targetPosition = new THREE.Vector3(doorPos.x, camera.position.y, targetZ);
+      isMoving = true;
+      initialYaw = doorPos.z > 0 ? Math.PI : 0;
+
+      doorActions.style.opacity = '1';
+      doorActions.style.pointerEvents = 'auto';
+
+      navContainer.style.opacity = '0';
+      navContainer.style.pointerEvents = 'none';
+    });
+  }
 });
 
 // ===== LOAD MODEL =====
@@ -228,12 +229,11 @@ loader.load(
     const eyeHeight = size.y * 0.65;
     centerGlobal.copy(center);
 
-    // ===== STOPS CUSTOM =====
     stops = [
-      new THREE.Vector3(box.max.x - 50,  box.min.y + eyeHeight, center.z), // stop 0 - start
-      new THREE.Vector3(box.max.x - 300, box.min.y + eyeHeight, center.z), // stop 1
-      new THREE.Vector3(box.max.x - 600, box.min.y + eyeHeight, center.z), // stop 2
-      new THREE.Vector3(box.max.x - 900, box.min.y + eyeHeight, center.z), // stop 3 - lift
+      new THREE.Vector3(box.max.x - 50,  box.min.y + eyeHeight, center.z),
+      new THREE.Vector3(box.max.x - 450, box.min.y + eyeHeight, center.z),
+      new THREE.Vector3(box.max.x - 650, box.min.y + eyeHeight, center.z),
+      new THREE.Vector3(box.max.x - 900, box.min.y + eyeHeight, center.z),
     ];
 
     currentStop = 0;
@@ -243,7 +243,6 @@ loader.load(
     camera.rotation.x = 0;
     initialYaw = Math.PI / 2;
 
-    // ===== PERETE SPAWN =====
     const wallGeometry = new THREE.BoxGeometry(5, size.y, size.z * 2);
     const wallMaterial = new THREE.MeshStandardMaterial({
       color: 0xf0ebe3,
@@ -262,7 +261,11 @@ loader.load(
     spawnLight.position.set(box.max.x - 30, box.min.y + eyeHeight, center.z);
     scene.add(spawnLight);
 
+    doorSystem = new DoorSystem(scene, camera);
+    doorSystem.register(corridor);
+
     updateButtons();
+    infoBox.textContent = 'Nimic selectat';
 
     console.log('✓ Corridor loaded');
     console.log('box.max.x:', box.max.x);
@@ -297,7 +300,6 @@ function animate() {
 
   if (isMoving && targetPosition) {
     camera.position.lerp(targetPosition, 0.08);
-
     if (camera.position.distanceTo(targetPosition) < 1) {
       camera.position.copy(targetPosition);
       isMoving = false;
@@ -310,6 +312,10 @@ function animate() {
   camera.rotation.order = 'YXZ';
   camera.rotation.y += (currentTargetYaw - camera.rotation.y) * 0.05;
   camera.rotation.x += (targetPitch - camera.rotation.x) * 0.05;
+
+  if (doorSystem) {
+    doorSystem.update(raycaster, mouse, camera);
+  }
 
   if (corridor) {
     raycaster.setFromCamera(mouse, camera);
