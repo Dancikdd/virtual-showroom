@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { applyCorridor } from './corridor.js';
+import { DoorSystem } from './doorSystem.js';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1410);
@@ -22,10 +23,8 @@ const renderer = new THREE.WebGLRenderer({
 });
 
 renderer.setSize(window.innerWidth, window.innerHeight);
-
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
-
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 
@@ -58,40 +57,22 @@ scene.add(skyLight);
 
 // ===== CURSOR =====
 const cursor = document.createElement('div');
-cursor.style.cssText = `
-  position: fixed;
-  width: 16px;
-  height: 16px;
-  background: white;
-  border-radius: 50%;
-  pointer-events: none;
-  transform: translate(-50%, -50%);
-  z-index: 999;
-  mix-blend-mode: difference;
-`;
+cursor.id = 'cursor';
 document.body.appendChild(cursor);
 document.body.style.cursor = 'none';
+
+document.addEventListener('mousemove', (e) => {
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top = e.clientY + 'px';
+});
 
 // ===== RAYCASTER =====
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
+// ===== INFO BOX =====
 const infoBox = document.createElement('div');
-infoBox.style.cssText = `
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0,0,0,0.75);
-  color: #fff;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-family: monospace;
-  font-size: 13px;
-  pointer-events: none;
-  z-index: 1000;
-  white-space: nowrap;
-`;
+infoBox.id = 'info-box';
 infoBox.textContent = 'Se încarcă modelul...';
 document.body.appendChild(infoBox);
 
@@ -110,10 +91,118 @@ document.addEventListener('mousemove', (e) => {
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 });
 
+// ===== NAVIGARE =====
+let currentStop = 0;
+let targetPosition = null;
+let isMoving = false;
+let stops = [];
+let centerGlobal = new THREE.Vector3();
+let initialYaw = Math.PI / 2;
+
+// ===== UI NAVIGARE =====
+const navContainer = document.createElement('div');
+navContainer.id = 'nav-container';
+document.body.appendChild(navContainer);
+
+const btnBack = document.createElement('div');
+btnBack.className = 'nav-btn';
+btnBack.innerHTML = '&#9650;';
+
+const btnForward = document.createElement('div');
+btnForward.className = 'nav-btn';
+btnForward.innerHTML = '&#9660;';
+
+navContainer.appendChild(btnBack);
+navContainer.appendChild(btnForward);
+
+// ===== UI DOOR ACTIONS =====
+const doorActions = document.createElement('div');
+doorActions.id = 'door-actions';
+document.body.appendChild(doorActions);
+
+const btnEnter = document.createElement('div');
+btnEnter.className = 'door-btn';
+btnEnter.innerHTML = '&#9650;';  
+
+const btnClose = document.createElement('div');
+btnClose.className = 'door-btn';
+btnClose.innerHTML = '&#9660;';  
+
+doorActions.appendChild(btnEnter);
+doorActions.appendChild(btnClose);
+
+btnClose.addEventListener('click', () => {
+  if (doorSystem && doorSystem.lastOpenedDoor) {
+    const door = doorSystem.lastOpenedDoor;
+    door.state = 'closed';
+    door.targetAngle = 0;
+    door.light.intensity = 0;
+    doorSystem.lastOpenedDoor = null;
+  }
+  moveTo(currentStop);
+  doorActions.style.opacity = '0';
+  doorActions.style.pointerEvents = 'none';
+
+  navContainer.style.opacity = '1';
+  navContainer.style.pointerEvents = 'auto';
+});
+
+// ===== FUNCTII NAVIGARE =====
+function updateButtons() {
+  btnBack.style.opacity = currentStop < stops.length - 1 ? '1' : '0.25';
+  btnBack.style.pointerEvents = currentStop < stops.length - 1 ? 'auto' : 'none';
+  btnForward.style.opacity = currentStop > 0 ? '1' : '0.25';
+  btnForward.style.pointerEvents = currentStop > 0 ? 'auto' : 'none';
+}
+
+function moveTo(index) {
+  if (isMoving) return;
+  currentStop = index;
+  targetPosition = stops[currentStop].clone();
+  isMoving = true;
+
+  if (index === stops.length - 1) {
+    initialYaw = Math.PI / 2 + Math.PI;
+  } else {
+    initialYaw = Math.PI / 2;
+  }
+
+  updateButtons();
+}
+
+btnBack.addEventListener('click', () => {
+  if (currentStop < stops.length - 1) moveTo(currentStop + 1);
+});
+
+btnForward.addEventListener('click', () => {
+  if (currentStop > 0) moveTo(currentStop - 1);
+});
+
+// ===== DOOR SYSTEM =====
+let doorSystem = null;
+
+window.addEventListener('click', () => {
+  if (doorSystem) {
+    doorSystem.onClick(raycaster, mouse, camera, (doorPos) => {
+      const offsetX = 80;
+      const targetZ = doorPos.z > 0 ? doorPos.z - offsetX : doorPos.z + offsetX;
+
+      targetPosition = new THREE.Vector3(doorPos.x, camera.position.y, targetZ);
+      isMoving = true;
+      initialYaw = doorPos.z > 0 ? Math.PI : 0;
+
+      doorActions.style.opacity = '1';
+      doorActions.style.pointerEvents = 'auto';
+
+      navContainer.style.opacity = '0';
+      navContainer.style.pointerEvents = 'none';
+    });
+  }
+});
+
 // ===== LOAD MODEL =====
 const loader = new GLTFLoader();
 let corridor = null;
-let initialYaw = Math.PI / 2;
 
 loader.load(
   '/models/corridor.glb',
@@ -133,38 +222,61 @@ loader.load(
     applyCorridor(corridor, scene);
     scene.add(corridor);
 
-    // ===== CAMERA SPAWN =====
     const box = new THREE.Box3().setFromObject(corridor);
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
 
-    const eyeHeight = size.y * 0.55;
+    const eyeHeight = size.y * 0.65;
+    centerGlobal.copy(center);
 
-    camera.position.set(
-      box.max.x - 50,
-      box.min.y + eyeHeight,
-      center.z
-    );
+    stops = [
+      new THREE.Vector3(box.max.x - 50,  box.min.y + eyeHeight, center.z),
+      new THREE.Vector3(box.max.x - 450, box.min.y + eyeHeight, center.z),
+      new THREE.Vector3(box.max.x - 650, box.min.y + eyeHeight, center.z),
+      new THREE.Vector3(box.max.x - 900, box.min.y + eyeHeight, center.z),
+    ];
 
+    currentStop = 0;
+    camera.position.copy(stops[0]);
     camera.rotation.order = 'YXZ';
     camera.rotation.y = Math.PI / 2;
     camera.rotation.x = 0;
+    initialYaw = Math.PI / 2;
 
-    initialYaw = camera.rotation.y;
+    const wallGeometry = new THREE.BoxGeometry(5, size.y, size.z * 2);
+    const wallMaterial = new THREE.MeshStandardMaterial({
+      color: 0xf0ebe3,
+      roughness: 0.9,
+      metalness: 0.0,
+      emissive: 0xf0ebe3,
+      emissiveIntensity: 0.1,
+    });
+    const spawnWall = new THREE.Mesh(wallGeometry, wallMaterial);
+    spawnWall.position.set(box.max.x, box.min.y + size.y / 2, center.z);
+    spawnWall.receiveShadow = true;
+    spawnWall.castShadow = true;
+    scene.add(spawnWall);
+
+    const spawnLight = new THREE.PointLight(0xffe8d6, 1.5, 300);
+    spawnLight.position.set(box.max.x - 30, box.min.y + eyeHeight, center.z);
+    scene.add(spawnLight);
+
+    doorSystem = new DoorSystem(scene, camera);
+    doorSystem.register(corridor);
+
+    updateButtons();
+    infoBox.textContent = 'Nimic selectat';
 
     console.log('✓ Corridor loaded');
-    console.log('Spawn:', camera.position);
-    console.log('Initial yaw:', initialYaw);
-    console.log('Box min:', box.min);
-    console.log('Box max:', box.max);
-    console.log('Size:', size);
+    console.log('box.max.x:', box.max.x);
+    console.log('box.min.y:', box.min.y);
+    console.log('eyeHeight:', eyeHeight);
+    console.log('Stops:', stops);
   },
 
   (progress) => {
     if (progress.total) {
-      const percent = Math.round(
-        (progress.loaded / progress.total) * 100
-      );
+      const percent = Math.round((progress.loaded / progress.total) * 100);
       infoBox.textContent = `Încărcare: ${percent}%`;
     }
   },
@@ -186,21 +298,28 @@ window.addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
 
-  const targetYaw = initialYaw + (-mouseX * Math.PI * 0.4);
+  if (isMoving && targetPosition) {
+    camera.position.lerp(targetPosition, 0.08);
+    if (camera.position.distanceTo(targetPosition) < 1) {
+      camera.position.copy(targetPosition);
+      isMoving = false;
+    }
+  }
+
+  const currentTargetYaw = initialYaw + (-mouseX * Math.PI * 0.15);
   const targetPitch = -mouseY * Math.PI * 0.15;
 
   camera.rotation.order = 'YXZ';
-  camera.rotation.y += (targetYaw - camera.rotation.y) * 0.05;
+  camera.rotation.y += (currentTargetYaw - camera.rotation.y) * 0.05;
   camera.rotation.x += (targetPitch - camera.rotation.x) * 0.05;
 
-  // ===== RAYCASTER =====
+  if (doorSystem) {
+    doorSystem.update(raycaster, mouse, camera);
+  }
+
   if (corridor) {
     raycaster.setFromCamera(mouse, camera);
-
-    const intersects = raycaster.intersectObjects(
-      corridor.children,
-      true
-    );
+    const intersects = raycaster.intersectObjects(corridor.children, true);
 
     if (intersects.length > 0) {
       const hit = intersects[0];
