@@ -32,10 +32,13 @@ document.body.style.margin = 0;
 document.body.style.overflow = 'hidden';
 
 // ===== LIGHTS =====
-const ambientLight = new THREE.AmbientLight(0xffe8d6, 0.5);
+const ambientLight = new THREE.AmbientLight(0xffe8d6, 0.2);
 scene.add(ambientLight);
 
-const mainLight = new THREE.DirectionalLight(0xffd9b3, 0.9);
+const purpleAmbient = new THREE.AmbientLight(0x6b35c8, 0.8);
+scene.add(purpleAmbient);
+
+const mainLight = new THREE.DirectionalLight(0xffd9b3, 0.4);
 mainLight.position.set(10, 8, 15);
 mainLight.castShadow = true;
 mainLight.shadow.mapSize.width = 4096;
@@ -48,11 +51,11 @@ mainLight.shadow.camera.bottom = -50;
 mainLight.shadow.bias = -0.001;
 scene.add(mainLight);
 
-const fillLight = new THREE.DirectionalLight(0xb0c4ff, 0.4);
+const fillLight = new THREE.DirectionalLight(0xb0c4ff, 0.2);
 fillLight.position.set(-20, 5, -10);
 scene.add(fillLight);
 
-const skyLight = new THREE.HemisphereLight(0xd4e6f1, 0xc4a574, 0.5);
+const skyLight = new THREE.HemisphereLight(0xd4e6f1, 0xc4a574, 0.2);
 scene.add(skyLight);
 
 // ===== CURSOR =====
@@ -106,11 +109,15 @@ document.body.appendChild(navContainer);
 
 const btnBack = document.createElement('div');
 btnBack.className = 'nav-btn';
-btnBack.innerHTML = '&#9650;';
+btnBack.innerHTML = `<svg viewBox="0 0 100 55" xmlns="http://www.w3.org/2000/svg">
+  <path d="M0,50 L50,0 L100,50 L75,50 L50,28 L25,50 Z" fill="white"/>
+</svg>`;
 
 const btnForward = document.createElement('div');
 btnForward.className = 'nav-btn';
-btnForward.innerHTML = '&#9660;';
+btnForward.innerHTML = `<svg viewBox="0 0 100 55" xmlns="http://www.w3.org/2000/svg">
+  <path d="M0,5 L50,55 L100,5 L75,5 L50,27 L25,5 Z" fill="white"/>
+</svg>`;
 
 navContainer.appendChild(btnBack);
 navContainer.appendChild(btnForward);
@@ -122,11 +129,15 @@ document.body.appendChild(doorActions);
 
 const btnEnter = document.createElement('div');
 btnEnter.className = 'door-btn';
-btnEnter.innerHTML = '&#9650;';  
+btnEnter.innerHTML = `<svg viewBox="0 0 100 55" xmlns="http://www.w3.org/2000/svg">
+  <path d="M0,50 L50,0 L100,50 L75,50 L50,28 L25,50 Z" fill="white"/>
+</svg>`;
 
 const btnClose = document.createElement('div');
 btnClose.className = 'door-btn';
-btnClose.innerHTML = '&#9660;';  
+btnClose.innerHTML = `<svg viewBox="0 0 100 55" xmlns="http://www.w3.org/2000/svg">
+  <path d="M0,5 L50,55 L100,5 L75,5 L50,27 L25,5 Z" fill="white"/>
+</svg>`;
 
 doorActions.appendChild(btnEnter);
 doorActions.appendChild(btnClose);
@@ -139,6 +150,7 @@ btnClose.addEventListener('click', () => {
     door.light.intensity = 0;
     doorSystem.lastOpenedDoor = null;
   }
+  isMoving = false;
   moveTo(currentStop);
   doorActions.style.opacity = '0';
   doorActions.style.pointerEvents = 'none';
@@ -261,6 +273,19 @@ loader.load(
     spawnLight.position.set(box.max.x - 30, box.min.y + eyeHeight, center.z);
     scene.add(spawnLight);
 
+    // ===== PURPLE ATMOSPHERE LIGHTS =====
+    const purpleLight1 = new THREE.PointLight(0x7b2fff, 3, 800);
+    purpleLight1.position.set(box.max.x - 300, box.min.y + eyeHeight, center.z);
+    scene.add(purpleLight1);
+
+    const purpleLight2 = new THREE.PointLight(0x7b2fff, 3, 800);
+    purpleLight2.position.set(box.max.x - 600, box.min.y + eyeHeight, center.z);
+    scene.add(purpleLight2);
+
+    const purpleLight3 = new THREE.PointLight(0x9b3fff, 2.5, 600);
+    purpleLight3.position.set(box.max.x - 450, box.min.y + size.y * 0.9, center.z);
+    scene.add(purpleLight3);
+
     doorSystem = new DoorSystem(scene, camera);
     doorSystem.register(corridor);
 
@@ -295,8 +320,11 @@ window.addEventListener('resize', () => {
 });
 
 // ===== LOOP =====
+let time = 0;
+
 function animate() {
   requestAnimationFrame(animate);
+  time += 0.005;
 
   if (isMoving && targetPosition) {
     camera.position.lerp(targetPosition, 0.08);
@@ -315,6 +343,7 @@ function animate() {
 
   if (doorSystem) {
     doorSystem.update(raycaster, mouse, camera);
+    doorSystem.updateVoids(time);
   }
 
   if (corridor) {
