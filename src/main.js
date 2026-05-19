@@ -239,8 +239,6 @@ btnClose.addEventListener('click', (e) => {
 btnEnter.addEventListener('click', (e) => {
   e.stopPropagation();
 
-  doorActions.style.opacity = '0';
-  doorActions.style.pointerEvents = 'none';
 });
 
 function goToFloor(targetFloor) {
