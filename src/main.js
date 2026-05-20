@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { applyCorridor } from './corridor.js';
 import { DoorSystem } from './doorSystem.js';
+import { RoomSystem } from './roomSystem.js';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1410);
@@ -100,6 +101,15 @@ let doorSystemFloor2 = null;
 let activeDoorSystem = null;
 
 let elevatorIsChangingFloor = false;
+let isTransitioning = false;
+let enterTimeoutId = null;
+let zoomAnimationId = null; // ← NOU
+
+const DEFAULT_FOV = 75; // ← NOU
+
+let savedCameraPosition = null;
+let savedCameraYaw = Math.PI / 2;
+let savedInitialYaw = Math.PI / 2;
 
 const ELEVATOR_CLOSE_TIME = 3000;
 const ELEVATOR_WAIT_TIME = 3000;
@@ -161,6 +171,50 @@ document.body.appendChild(elevatorUI);
 elevatorUI.style.opacity = '0';
 elevatorUI.style.pointerEvents = 'none';
 
+// RESET FOV helper
+function resetFov() {
+  if (zoomAnimationId) {
+    cancelAnimationFrame(zoomAnimationId);
+    zoomAnimationId = null;
+  }
+  camera.fov = DEFAULT_FOV;
+  camera.updateProjectionMatrix();
+}
+
+// ROOM SYSTEM
+const roomSystem = new RoomSystem(renderer, () => {
+  isTransitioning = false;
+
+  if (enterTimeoutId) {
+    clearTimeout(enterTimeoutId);
+    enterTimeoutId = null;
+  }
+
+  // Reset FOV la ieșire — fix bug zoom blocat
+  resetFov();
+
+  if (savedCameraPosition) {
+    camera.position.copy(savedCameraPosition);
+  }
+  camera.rotation.y = savedCameraYaw;
+  camera.rotation.x = 0;
+  initialYaw = savedInitialYaw;
+  isMoving = false;
+  targetPosition = null;
+
+  doorActions.style.opacity = '1';
+  doorActions.style.pointerEvents = 'auto';
+  btnEnter.style.opacity = '1';
+  btnEnter.style.pointerEvents = 'auto';
+  btnClose.style.opacity = '1';
+  btnClose.style.pointerEvents = 'auto';
+
+  navContainer.style.opacity = '0';
+  navContainer.style.pointerEvents = 'none';
+});
+
+// EVENT LISTENERS
+
 document.getElementById('floor1').addEventListener('click', (e) => {
   e.stopPropagation();
   goToFloor(1);
@@ -218,6 +272,14 @@ btnForward.addEventListener('click', (e) => {
 btnClose.addEventListener('click', (e) => {
   e.stopPropagation();
 
+  if (roomSystem && roomSystem.active) {
+    roomSystem.exit();
+    return;
+  }
+
+  // Reset FOV dacă se închide înainte să termine zoom-ul
+  resetFov();
+
   if (activeDoorSystem && activeDoorSystem.lastOpenedDoor) {
     const door = activeDoorSystem.lastOpenedDoor;
     door.state = 'closed';
@@ -226,19 +288,91 @@ btnClose.addEventListener('click', (e) => {
     activeDoorSystem.lastOpenedDoor = null;
   }
 
-  isMoving = false;
-  moveTo(currentStop);
+  savedCameraPosition = null;
+
+  const baseStop = stops[currentStop].clone();
+  baseStop.y += getFloorOffset();
+  targetPosition = baseStop;
+  isMoving = true;
+
+  initialYaw = currentStop === stops.length - 1
+    ? Math.PI / 2 + Math.PI
+    : Math.PI / 2;
 
   doorActions.style.opacity = '0';
   doorActions.style.pointerEvents = 'none';
 
   navContainer.style.opacity = '1';
   navContainer.style.pointerEvents = 'auto';
+
+  updateButtons();
 });
 
 btnEnter.addEventListener('click', (e) => {
   e.stopPropagation();
+  if (isTransitioning) return;
+  if (!activeDoorSystem || !activeDoorSystem.lastOpenedDoor) return;
 
+  isTransitioning = true;
+  const doorKey = activeDoorSystem.lastOpenedDoor.key;
+
+  savedCameraPosition = camera.position.clone();
+  savedCameraYaw = camera.rotation.y;
+  savedInitialYaw = initialYaw;
+
+  navContainer.style.opacity = '0';
+  navContainer.style.pointerEvents = 'none';
+  doorActions.style.opacity = '0';
+  doorActions.style.pointerEvents = 'none';
+
+  if (zoomAnimationId) {
+    cancelAnimationFrame(zoomAnimationId);
+    zoomAnimationId = null;
+  }
+
+  // ZOOM ÎNAINTE DE INTRARE
+  const startZ = camera.position.z;
+  const doorPos = activeDoorSystem.lastOpenedDoor.centerPos;
+  const zDir = doorPos.z > 0 ? 1 : -1;
+  const targetZ = camera.position.z + zDir * 90;
+
+  const startFov = camera.fov;
+  const endFov = DEFAULT_FOV - 8;
+
+  const duration = 250;
+  const startTime = performance.now();
+
+  const zoomIn = (now) => {
+    const t = Math.min((now - startTime) / duration, 1);
+    const e = 1 - Math.pow(1 - t, 2);
+
+    camera.position.z = startZ + (targetZ - startZ) * e;
+    camera.fov = startFov + (endFov - startFov) * e;
+    camera.updateProjectionMatrix();
+
+    if (t < 1) {
+      zoomAnimationId = requestAnimationFrame(zoomIn);
+    } else {
+      zoomAnimationId = null;
+      roomSystem.enter(doorKey);
+
+      if (enterTimeoutId) clearTimeout(enterTimeoutId);
+      enterTimeoutId = setTimeout(() => {
+        enterTimeoutId = null;
+        if (roomSystem && roomSystem.active) {
+          btnEnter.style.opacity = '0';
+          btnEnter.style.pointerEvents = 'none';
+          doorActions.style.opacity = '1';
+          doorActions.style.pointerEvents = 'auto';
+          btnClose.style.opacity = '1';
+          btnClose.style.pointerEvents = 'auto';
+        }
+        isTransitioning = false;
+      }, 900);
+    }
+  };
+
+  zoomAnimationId = requestAnimationFrame(zoomIn);
 });
 
 function goToFloor(targetFloor) {
@@ -255,24 +389,17 @@ function goToFloor(targetFloor) {
   navContainer.style.pointerEvents = 'none';
 
   activeDoorSystem.setElevatorLocked(true);
-
-  // 1. Ușile se închid lent
   activeDoorSystem.closeElevatorDoorsSlow();
 
   setTimeout(() => {
-    // 2. După ce s-au închis, stai 3 secunde în lift
     setTimeout(() => {
-      // 3. Schimbă etajul
       floor = targetFloor;
       updateFloorIndicator();
 
       activeDoorSystem = floor === 1 ? doorSystemFloor1 : doorSystemFloor2;
-
       camera.position.y = stops[currentStop].y + getFloorOffset();
 
       activeDoorSystem.setElevatorLocked(true);
-
-      // 4. La etajul nou, ușile pornesc închise și se deschid lent
       activeDoorSystem.openElevatorDoorsSlow();
 
       setTimeout(() => {
@@ -294,6 +421,7 @@ window.addEventListener('click', (e) => {
   if (e.target.closest('#door-actions')) return;
   if (e.target.closest('#elevator-ui')) return;
   if (elevatorIsChangingFloor) return;
+  if (roomSystem && roomSystem.active) return;
 
   if (!activeDoorSystem) return;
 
@@ -459,6 +587,11 @@ let time = 0;
 function animate() {
   requestAnimationFrame(animate);
   time += 0.005;
+
+  if (roomSystem && roomSystem.active) {
+    roomSystem.update(time);
+    return;
+  }
 
   if (isMoving && targetPosition) {
     camera.position.lerp(targetPosition, 0.08);
