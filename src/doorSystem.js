@@ -3,17 +3,25 @@ import * as THREE from 'three';
 const DOOR_EXCLUDES = ['frame', 'tocul', 'rama', 'casing'];
 
 const DOOR_DIRECTION_OVERRIDES = {
-  'door_001': -1,
-  'door_004': -1,
-  'door_005': -1,
-  'door_006': -1,
+  'floor1_door_001': -1,
+  'floor1_door_004': -1,
+  'floor1_door_005': -1,
+  'floor1_door_006': -1,
+  'floor2_door_001': -1,
+  'floor2_door_004': -1,
+  'floor2_door_005': -1,
+  'floor2_door_006': -1,
 };
 
 const DOOR_PIVOT_OVERRIDES = {
-  'door_001': 'min',
-  'door_004': 'max',
-  'door_005': 'min',
-  'door_006': 'max',
+  'floor1_door_001': 'min',
+  'floor1_door_004': 'max',
+  'floor1_door_005': 'min',
+  'floor1_door_006': 'max',
+  'floor2_door_001': 'min',
+  'floor2_door_004': 'max',
+  'floor2_door_005': 'min',
+  'floor2_door_006': 'max',
 };
 
 const HOVER_ANGLE = Math.PI / 20;
@@ -99,7 +107,7 @@ function createVoidEffect(scene, centerPos, doorSize) {
 }
 
 export class DoorSystem {
-  constructor(scene, camera) {
+  constructor(scene, camera, floorId = 'floor1') {
     this.scene = scene;
     this.camera = camera;
     this.doors = [];
@@ -108,6 +116,7 @@ export class DoorSystem {
     this.voidSystems = [];
     this.lastOpenedDoor = null;
     this.elevatorLocked = false;
+    this.floorId = floorId;
   }
 
   register(corridor) {
@@ -130,8 +139,8 @@ export class DoorSystem {
       }
 
       const num = getDoorNumber(node.name);
-      const key = num ? `door_${num}` : null;
-
+      const key = num ? `${this.floorId}_door_${num}` : null;
+      
       if (!key) return;
 
       if (!buckets[key]) buckets[key] = [];

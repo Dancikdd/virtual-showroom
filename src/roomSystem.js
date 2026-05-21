@@ -1,64 +1,28 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { DoorModelManager } from './doorManager.js';
 
 const ROOM_CONFIG = {
-  'door_001': {
-    label: 'Produs 1',
-    color: 0x8844ff,
-    modelPath: '/products/astronaut-animated.glb',
-    scale: 1,
-    offsetY: 60,
-  },
-  'door_002': {
-    label: 'Produs 2',
-    color: 0xff4488,
-    modelPath: null,
-    scale: 1,
-    offsetY: 0,
-  },
-  'door_003': {
-    label: 'Produs 3',
-    color: 0x44ffaa,
-    modelPath: null,
-    scale: 1,
-    offsetY: 0,
-  },
-  'door_004': {
-    label: 'Produs 4',
-    color: 0xff8844,
-    modelPath: null,
-    scale: 1,
-    offsetY: 0,
-  },
-  'door_005': {
-    label: 'Produs 5',
-    color: 0x44aaff,
-    modelPath: null,
-    scale: 1,
-    offsetY: 0,
-  },
-  'door_006': {
-    label: 'Produs 6',
-    color: 0xffff44,
-    modelPath: null,
-    scale: 1,
-    offsetY: 0,
-  },
-  'door_007': {
-    label: 'Produs 7',
-    color: 0xff4444,
-    modelPath: null,
-    scale: 1,
-    offsetY: 0,
-  },
-  'door_008': {
-    label: 'Produs 8',
-    color: 0x44ff44,
-    modelPath: null,
-    scale: 1,
-    offsetY: 0,
-  },
+  // ── Etaj 1 ──
+  'floor1_door_001': { label: 'Produs 1',  color: 0x8844ff, modelPath: '/products/astronaut-animated.glb', scale: 1, offsetY: 60 },
+  'floor1_door_002': { label: 'Produs 2',  color: 0xff4488, modelPath: null, scale: 1, offsetY: 0, theme: 'underwater' },
+  'floor1_door_003': { label: 'Produs 3',  color: 0x44ffaa, modelPath: null, scale: 1, offsetY: 0 },
+  'floor1_door_004': { label: 'Produs 4',  color: 0xff8844, modelPath: null, scale: 1, offsetY: 0 },
+  'floor1_door_005': { label: 'Produs 5',  color: 0x44aaff, modelPath: null, scale: 1, offsetY: 0 },
+  'floor1_door_006': { label: 'Produs 6',  color: 0xffff44, modelPath: null, scale: 1, offsetY: 0 },
+  'floor1_door_007': { label: 'Produs 7',  color: 0xff4444, modelPath: null, scale: 1, offsetY: 0 },
+  'floor1_door_008': { label: 'Produs 8',  color: 0x44ff44, modelPath: null, scale: 1, offsetY: 0 },
+
+  // ── Etaj 2 ──
+  'floor2_door_001': { label: 'Produs 9',  color: 0xaa44ff, modelPath: null, scale: 1, offsetY: 0, theme: 'forest' },
+  'floor2_door_002': { label: 'Produs 10', color: 0xff44aa, modelPath: null, scale: 1, offsetY: 0 },
+  'floor2_door_003': { label: 'Produs 11', color: 0x44ffcc, modelPath: null, scale: 1, offsetY: 0 },
+  'floor2_door_004': { label: 'Produs 12', color: 0xff6622, modelPath: null, scale: 1, offsetY: 0 },
+  'floor2_door_005': { label: 'Produs 13', color: 0x2266ff, modelPath: null, scale: 1, offsetY: 0 },
+  'floor2_door_006': { label: 'Produs 14', color: 0xffee22, modelPath: null, scale: 1, offsetY: 0 },
+  'floor2_door_007': { label: 'Produs 15', color: 0xff2222, modelPath: null, scale: 1, offsetY: 0 },
+  'floor2_door_008': { label: 'Produs 16', color: 0x22ff22, modelPath: null, scale: 1, offsetY: 0 },
 };
 
 export class RoomSystem {
@@ -85,6 +49,7 @@ export class RoomSystem {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x050508);
+    this.doorManager = new DoorModelManager(this.scene);
 
     this.camera = new THREE.PerspectiveCamera(
       60,
@@ -391,7 +356,7 @@ export class RoomSystem {
     );
   }
 
-  enter(doorKey) {
+enter(doorKey) {
     if (this.active) return;
 
     console.log('enter doorKey:', doorKey);
@@ -406,10 +371,21 @@ export class RoomSystem {
     this.orbitPitch    = 0;
     this._orbitR       = 170;
     this._orbitRTarget = 170;
+    this.currentDoorKey = doorKey;
 
     const config = ROOM_CONFIG[doorKey];
 
     this._flash(() => {
+
+    const isFirstDoor = doorKey === 'floor1_door_001';
+    if (this.stars) this.stars.visible = isFirstDoor;
+    if (this.sun) this.sun.visible = isFirstDoor;
+    if (this.planets) this.planets.forEach(p => {
+      p.mesh.visible = isFirstDoor;
+      if (p.moon) p.moon.visible = isFirstDoor;
+    });
+    if (this.orbitLines) this.orbitLines.forEach(o => o.visible = isFirstDoor);
+
       if (this.currentModel) {
         this.currentModel.visible = false;
         this.currentModel = null;
@@ -419,7 +395,9 @@ export class RoomSystem {
       this.label.textContent = config ? config.label : doorKey;
       this.label.style.opacity = '1';
 
-      this._loadModel(doorKey, config, (entry) => {
+      this.doorManager.setConfig(config);
+      this.doorManager.setupScene();
+      this.doorManager.load(doorKey, (entry) => {
         if (!this.active) return;
         entry.object.visible = true;
         this.currentModel = entry.object;
@@ -529,11 +507,11 @@ export class RoomSystem {
     this.camera.position.set(0, 80, 0);
     this.camera.lookAt(lookX * 100, 80 + lookY * 100, lookZ * 100);
 
-    if (this.currentModel) {
+    if (this.currentModel && this.currentDoorKey === 'floor1_door_001') {
       const t = time * 0.18;
 
       this._orbitR += (this._orbitRTarget - this._orbitR) * 0.08;
-      this._orbitRTarget += (170 - this._orbitRTarget) * 0.002; 
+      this._orbitRTarget += (170 - this._orbitRTarget) * 0.002;
 
       const r = this._orbitR;
       const x = Math.sin(t) * r;
@@ -541,8 +519,11 @@ export class RoomSystem {
       const z = Math.cos(t * 0.9 + 0.5) * r;
 
       this.currentModel.position.set(x, y, z);
-
       this.currentModel.rotation.y = time * 1.2;
+
+    } else if (this.currentModel) {
+      this.currentModel.position.set(0, 80, -150);
+      this.currentModel.rotation.y = time * 0.5;
     }
 
     if (this.planets) {

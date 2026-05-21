@@ -457,7 +457,7 @@ loader.load(
     corridorFloor1.rotation.y = Math.PI / 2;
     corridorFloor1.updateMatrixWorld(true);
 
-    corridorFloor2 = corridorFloor1.clone(true);
+    corridorFloor2 = gltf.scene.clone(true);
     corridorFloor2.position.y += FLOOR_HEIGHT;
     corridorFloor2.updateMatrixWorld(true);
 
@@ -528,10 +528,10 @@ loader.load(
     purpleLight4.position.y += FLOOR_HEIGHT;
     scene.add(purpleLight4);
 
-    doorSystemFloor1 = new DoorSystem(scene, camera);
+    doorSystemFloor1 = new DoorSystem(scene, camera, 'floor1');
     doorSystemFloor1.register(corridorFloor1);
 
-    doorSystemFloor2 = new DoorSystem(scene, camera);
+    doorSystemFloor2 = new DoorSystem(scene, camera, 'floor2');
     doorSystemFloor2.register(corridorFloor2);
 
     activeDoorSystem = doorSystemFloor1;
