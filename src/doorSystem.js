@@ -17,7 +17,7 @@ const DOOR_PIVOT_OVERRIDES = {
 };
 
 const HOVER_ANGLE = Math.PI / 20;
-const OPEN_ANGLE = Math.PI / 1.8;
+const OPEN_ANGLE = Math.PI / 2.3;
 
 const NORMAL_DOOR_SPEED = 0.03;
 const ELEVATOR_DOOR_SPEED = 0.04;
