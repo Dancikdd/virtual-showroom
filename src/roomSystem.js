@@ -16,7 +16,7 @@ const ROOM_CONFIG = {
   'floor1_door_008': { label: 'Produs 8',  color: 0x44ff44, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate',                                         showGalaxy: false },
 
   // ── Etaj 2 ──
-  'floor2_door_001': { label: 'Porsche 911 GT3 RS',  color: 0xff6600, modelPath: '/products/lamborghini_centenario_lp-770_interior_sdc.glb', scale: 1.5, offsetY: 0, animation: 'car_showroom', showGalaxy: true  },
+  'floor2_door_001': { label: 'Porsche 911 GT3 RS',  color: 0xff6600, modelPath: '/products/lamborghini_centenario_lp-770_interior_sdc.glb', scale: 1.5, offsetY: 0, animation: 'car_showroom', showGalaxy: false },
   'floor2_door_002': { label: 'Produs 10', color: 0xff44aa, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate',                                         showGalaxy: false },
   'floor2_door_003': { label: 'Produs 11', color: 0x44ffcc, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate',                                         showGalaxy: false },
   'floor2_door_004': { label: 'Produs 12', color: 0xff6622, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate',                                         showGalaxy: false },
@@ -89,16 +89,14 @@ export class RoomSystem {
     this.camera.lookAt(0, 80, 0);
 
     // ── Ambient ──
-    const ambient = new THREE.AmbientLight(0x080d20, 1.5);
+    const ambient = new THREE.AmbientLight(0x101010, 0.8);
     this.scene.add(ambient);
 
     const topLight = new THREE.PointLight(0xffffff, 3, 1000);
     topLight.position.set(0, 500, 0);
     this.scene.add(topLight);
 
-    const bottomLight = new THREE.PointLight(0x1133ff, 1.5, 800);
-    bottomLight.position.set(0, -200, 0);
-    this.scene.add(bottomLight);
+    // bottomLight eliminat — cauza albastru
 
     this.spotLight = new THREE.SpotLight(0xffffff, 4, 800, Math.PI / 6, 0.3);
     this.spotLight.position.set(0, 400, 200);
@@ -112,15 +110,13 @@ export class RoomSystem {
     this.scene.add(keyLight);
     this.scene.add(keyLight.target);
 
-    const fillLight = new THREE.DirectionalLight(0x2244ff, 1.5);
-    fillLight.position.set(-200, 300, -100);
-    this.scene.add(fillLight);
+    // fillLight albastru eliminat
 
-    this.rimLight = new THREE.PointLight(0x6633ff, 1.5, 600);
+    this.rimLight = new THREE.PointLight(0x6633ff, 0, 600);
     this.rimLight.position.set(-200, 100, -200);
     this.scene.add(this.rimLight);
 
-    this.rimLight2 = new THREE.PointLight(0xff3366, 1.2, 500);
+    this.rimLight2 = new THREE.PointLight(0xff3366, 0, 500);
     this.rimLight2.position.set(200, 50, -150);
     this.scene.add(this.rimLight2);
 
@@ -153,19 +149,77 @@ export class RoomSystem {
     this.carUnderLight.position.set(0, -10, 0);
     this.scene.add(this.carUnderLight);
 
+    // ── Lumini APROAPE de masina (distance mic = toata intensitatea ajunge pe model) ──
+
+    // Stanga aproape
+    this.carSideLeft = new THREE.PointLight(0xffffff, 0, 180);
+    this.carSideLeft.position.set(-110, 50, 0);
+    this.scene.add(this.carSideLeft);
+
+    // Dreapta aproape
+    this.carSideRight = new THREE.PointLight(0xffffff, 0, 180);
+    this.carSideRight.position.set(110, 50, 0);
+    this.scene.add(this.carSideRight);
+
+    // Sus aproape — lumina principala
+    this.carTopRim = new THREE.PointLight(0xffffff, 0, 200);
+    this.carTopRim.position.set(0, 140, 0);
+    this.scene.add(this.carTopRim);
+
+    // Fata aproape
+    this.carCloseFront = new THREE.PointLight(0xfff8ee, 0, 160);
+    this.carCloseFront.position.set(0, 40, 120);
+    this.scene.add(this.carCloseFront);
+
+    // Spate aproape
+    this.carCloseBack = new THREE.PointLight(0xeeeeff, 0, 160);
+    this.carCloseBack.position.set(0, 40, -120);
+    this.scene.add(this.carCloseBack);
+
+    // 45 grade fata-stanga
+    this.carDiag1 = new THREE.PointLight(0xffffff, 0, 170);
+    this.carDiag1.position.set(-90, 80, 90);
+    this.scene.add(this.carDiag1);
+
+    // 45 grade fata-dreapta
+    this.carDiag2 = new THREE.PointLight(0xffffff, 0, 170);
+    this.carDiag2.position.set(90, 80, 90);
+    this.scene.add(this.carDiag2);
+
+    // Jos — bounce de pe platforma
+    this.carBounce = new THREE.PointLight(0xffeedd, 0, 120);
+    this.carBounce.position.set(0, 10, 0);
+    this.scene.add(this.carBounce);
+
     // ── Lumina de interior cockpit (portocaliu-roșu cald) ──
     this.interiorCabinLight = new THREE.PointLight(0xff4400, 0, 80);
     this.interiorCabinLight.position.set(0, 30, 0);
     this.scene.add(this.interiorCabinLight);
 
     // ── Lumini galaxie ──
-    this.galaxyLight1 = new THREE.PointLight(0x0033cc, 0.6, 3000);
+    this.galaxyLight1 = new THREE.PointLight(0x0033cc, 0, 3000);  // pornit doar când showGalaxy:true
     this.galaxyLight1.position.set(-1000, 500, -1500);
     this.scene.add(this.galaxyLight1);
 
-    this.galaxyLight2 = new THREE.PointLight(0x0055cc, 0.4, 2500);
+    this.galaxyLight2 = new THREE.PointLight(0x0055cc, 0, 2500);  // pornit doar când showGalaxy:true
     this.galaxyLight2.position.set(1200, -300, -1000);
     this.scene.add(this.galaxyLight2);
+
+    // ── Lumini astronaut — active doar în floor1_door_001 ──
+    this.astroAmbient = new THREE.AmbientLight(0xffffff, 0);
+    this.scene.add(this.astroAmbient);
+
+    this.astroKeyLight = new THREE.PointLight(0xffffff, 0, 1200);
+    this.astroKeyLight.position.set(0, 200, 0);
+    this.scene.add(this.astroKeyLight);
+
+    this.astroFillLight = new THREE.PointLight(0xffeedd, 0, 1200);
+    this.astroFillLight.position.set(200, 0, 200);
+    this.scene.add(this.astroFillLight);
+
+    this.astroRimLight = new THREE.PointLight(0xffffff, 0, 1200);
+    this.astroRimLight.position.set(-200, 0, -200);
+    this.scene.add(this.astroRimLight);
 
     // ── Overlay fade ──
     this.overlay = document.createElement('div');
@@ -246,19 +300,21 @@ export class RoomSystem {
     // ── CAR START/STOP BUTTON ──
     this.btnCarStart = document.createElement('button');
     this.btnCarStart.id = 'car-start-btn';
-    this.btnCarStart.textContent = '▶ START';
+    this.btnCarStart.textContent = 'START';
     this.btnCarStart.style.cssText = `
-      padding: 12px 24px;
-      font-size: 14px;
-      font-weight: 600;
-      border: 2px solid #ff6600;
-      background: rgba(255, 102, 0, 0.2);
-      color: #ff6600;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.3s ease;
+      padding: 10px 28px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 3px;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      font-family: sans-serif;
+      backdrop-filter: blur(4px);
+border: 1px solid rgba(255, 100, 0, 0.6);
+      background: rgba(255, 100, 0, 0.08);
+      color: rgba(255, 120, 30, 0.9);
     `;
     this.btnCarStart.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -269,19 +325,21 @@ export class RoomSystem {
     // ── DOORS BUTTON ──
     this.doorsButton = document.createElement('button');
     this.doorsButton.id = 'doors-btn';
-    this.doorsButton.textContent = '🚪 DESCHIDE UȘILE';
+    this.doorsButton.textContent = 'DESCHIDE UȘILE';
     this.doorsButton.style.cssText = `
-      padding: 12px 24px;
-      font-size: 14px;
-      font-weight: 600;
-      border: 2px solid #44aaff;
-      background: rgba(68, 170, 255, 0.2);
-      color: #44aaff;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.3s ease;
+      padding: 10px 28px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 3px;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      font-family: sans-serif;
+      backdrop-filter: blur(4px);
+border: 1px solid rgba(60, 160, 255, 0.6);
+      background: rgba(60, 160, 255, 0.08);
+      color: rgba(80, 170, 255, 0.9);
     `;
     this.doorsButton.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -292,19 +350,21 @@ export class RoomSystem {
     // ── INTERIOR BUTTON ──
     this.btnCarInterior = document.createElement('button');
     this.btnCarInterior.id = 'car-interior-btn';
-    this.btnCarInterior.textContent = '🚗 INTRĂ ÎN MAȘINĂ';
+    this.btnCarInterior.textContent = 'INTRĂ ÎN MAȘINĂ';
     this.btnCarInterior.style.cssText = `
-      padding: 12px 24px;
-      font-size: 14px;
-      font-weight: 600;
-      border: 2px solid #00ffaa;
-      background: rgba(0, 255, 170, 0.12);
-      color: #00ffaa;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.3s ease;
+      padding: 10px 28px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 3px;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      font-family: sans-serif;
+      backdrop-filter: blur(4px);
+border: 1px solid rgba(0, 210, 140, 0.6);
+      background: rgba(0, 210, 140, 0.08);
+      color: rgba(0, 220, 150, 0.9);
     `;
     this.btnCarInterior.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -377,14 +437,14 @@ export class RoomSystem {
 
     // ── Actualizează butoanele ──
     if (this.isInsideCar) {
-      this.btnCarInterior.textContent      = '🚗 IEȘi DIN MAȘINĂ';
+      this.btnCarInterior.textContent      = 'IEȘi DIN MAȘINĂ';
       this.btnCarInterior.style.background = 'rgba(0, 255, 170, 0.3)';
       this.btnCarInterior.style.boxShadow  = '0 0 12px rgba(0,255,170,0.4)';
       // Ascunde START când ești în interior
       this.btnCarStart.style.opacity       = '0';
       this.btnCarStart.style.pointerEvents = 'none';
     } else {
-      this.btnCarInterior.textContent      = '🚗 INTRĂ ÎN MAȘINĂ';
+      this.btnCarInterior.textContent      = 'INTRĂ ÎN MAȘINĂ';
       this.btnCarInterior.style.background = 'rgba(0, 255, 170, 0.12)';
       this.btnCarInterior.style.boxShadow  = 'none';
       // Arată START la ieșire
@@ -561,11 +621,23 @@ export class RoomSystem {
       const mats = Array.isArray(mat) ? mat : [mat];
       mats.forEach((m) => {
         if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
-          m.envMapIntensity = 4.0;
-          m.roughness = Math.min(m.roughness, 0.25);
+          m.envMapIntensity = 1.0;
+          m.roughness       = 0.55;   // roughness mai mare = prinde mai bine lumina difuza
+          m.metalness       = Math.min(m.metalness, 0.6);
+          // Adauga emissive pe culoarea existenta (face materialul sa "straluceasca" putin singur)
+          if (!m.emissive || m.emissive.getHex() === 0) {
+            m.emissive = m.color ? m.color.clone().multiplyScalar(0.04) : new THREE.Color(0x080808);
+          } else {
+            m.emissive.multiplyScalar(0.3);
+          }
+          m.emissiveIntensity = 0.4;
           m.needsUpdate = true;
         }
-        if (m.isMeshPhongMaterial || m.isMeshLambertMaterial) {
+        if (m.isMeshPhongMaterial) {
+          m.shininess = 60;
+          m.needsUpdate = true;
+        }
+        if (m.isMeshLambertMaterial) {
           m.needsUpdate = true;
         }
       });
@@ -607,7 +679,7 @@ export class RoomSystem {
       positions[i * 3 + 2] = Math.sin(spiral) * dist + scatter - 2000;
 
       const col = starColors[Math.floor(Math.random() * starColors.length)];
-      const brightness = 0.25 + Math.random() * 0.35 + Math.exp(-dist / 2000) * 0.2;
+      const brightness = 0.6 + Math.random() * 0.4 + Math.exp(-dist / 2000) * 0.5;
       colors[i * 3]     = col.r * brightness;
       colors[i * 3 + 1] = col.g * brightness;
       colors[i * 3 + 2] = col.b * brightness;
@@ -617,16 +689,17 @@ export class RoomSystem {
     starGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const starMat = new THREE.PointsMaterial({
-      size: 1.4,
+      size: 2.5,
       vertexColors: true,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.95,
       sizeAttenuation: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
 
     this.galaxyStars = new THREE.Points(starGeo, starMat);
+    this.galaxyStars.visible = false;   // ascuns până când o ușă cu showGalaxy:true e deschisă
     this.scene.add(this.galaxyStars);
 
     this._createNebulaClouds();
@@ -635,14 +708,14 @@ export class RoomSystem {
 
   _createNebulaClouds() {
     const nebulaData = [
-      { color: 0x000a33, size: 1800, opacity: 0.07, x: 0,    y: 0,    z: -2000 },
-      { color: 0x001155, size: 1400, opacity: 0.06, x: -400, y: 100,  z: -1800 },
-      { color: 0x001166, size: 1000, opacity: 0.05, x: 600,  y: -200, z: -2200 },
-      { color: 0x0a0044, size: 1200, opacity: 0.04, x: -600, y: -100, z: -1600 },
-      { color: 0x001144, size: 900,  opacity: 0.06, x: 300,  y: 300,  z: -2400 },
-      { color: 0x000833, size: 700,  opacity: 0.05, x: -200, y: -400, z: -1400 },
-      { color: 0x110033, size: 800,  opacity: 0.04, x: 800,  y: 200,  z: -2600 },
-      { color: 0x080022, size: 600,  opacity: 0.03, x: -700, y: 300,  z: -2800 },
+      { color: 0x000a33, size: 1800, opacity: 0.25, x: 0,    y: 0,    z: -2000 },
+      { color: 0x001155, size: 1400, opacity: 0.22, x: -400, y: 100,  z: -1800 },
+      { color: 0x001166, size: 1000, opacity: 0.20, x: 600,  y: -200, z: -2200 },
+      { color: 0x0a0044, size: 1200, opacity: 0.18, x: -600, y: -100, z: -1600 },
+      { color: 0x001144, size: 900,  opacity: 0.20, x: 300,  y: 300,  z: -2400 },
+      { color: 0x000833, size: 700,  opacity: 0.18, x: -200, y: -400, z: -1400 },
+      { color: 0x110033, size: 800,  opacity: 0.16, x: 800,  y: 200,  z: -2600 },
+      { color: 0x080022, size: 600,  opacity: 0.14, x: -700, y: 300,  z: -2800 },
     ];
 
     this.nebulaClouds = [];
@@ -658,6 +731,7 @@ export class RoomSystem {
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(nd.x, nd.y, nd.z);
+      mesh.visible = false;   // ascuns implicit
       this.scene.add(mesh);
       this.nebulaClouds.push({ mesh, originalOpacity: nd.opacity });
     });
@@ -674,6 +748,7 @@ export class RoomSystem {
     });
     this.galacticCore = new THREE.Mesh(coreGeo, coreMat);
     this.galacticCore.position.set(0, 0, -2000);
+    this.galacticCore.visible = false;   // ascuns implicit
     this.scene.add(this.galacticCore);
 
     const haloGeo = new THREE.SphereGeometry(400, 32, 32);
@@ -838,7 +913,7 @@ export class RoomSystem {
   toggleCarEngine() {
     this.isCarRunning = !this.isCarRunning;
     if (this.btnCarStart) {
-      this.btnCarStart.textContent = this.isCarRunning ? '⏹ STOP' : '▶ START';
+      this.btnCarStart.textContent = this.isCarRunning ? 'STOP' : 'START';
       this.btnCarStart.style.background = this.isCarRunning
         ? 'rgba(255, 102, 0, 0.4)'
         : 'rgba(255, 102, 0, 0.2)';
@@ -889,7 +964,7 @@ export class RoomSystem {
   toggleBothDoors() {
     this.doorsOpen = !this.doorsOpen;
 
-    this.doorsButton.textContent = this.doorsOpen ? '🚪 ÎNCHIDE UȘILE' : '🚪 DESCHIDE UȘILE';
+    this.doorsButton.textContent = this.doorsOpen ? 'ÎNCHIDE UȘILE' : 'DESCHIDE UȘILE';
     this.doorsButton.style.background = this.doorsOpen
       ? 'rgba(68, 170, 255, 0.5)'
       : 'rgba(68, 170, 255, 0.2)';
@@ -1037,9 +1112,7 @@ export class RoomSystem {
       return;
     }
 
-    if (config.modelPath) {
-      this.loadingIndicator.style.opacity = '1';
-    }
+    // loading indicator nu mai e folosit — overlay acoperă ecranul
 
     if (!config.modelPath) {
       const entry = this._makePlaceholder(config);
@@ -1104,9 +1177,7 @@ export class RoomSystem {
   enter(doorKey) {
     if (this.active) return;
 
-    console.log('enter doorKey:', doorKey);
     this.active = true;
-
     const config = ROOM_CONFIG[doorKey];
     this.currentAnimationType = config?.animation || 'rotate';
 
@@ -1121,37 +1192,45 @@ export class RoomSystem {
     const cc = document.getElementById('cursor');
     if (cc) cc.style.display = 'none';
 
-    this.orbitYaw      = 0;
-    this.orbitPitch    = 0;
-    this._orbitR       = 170;
-    this._orbitRTarget = 170;
+    this.orbitYaw       = 0;
+    this.orbitPitch     = 0;
+    this._orbitR        = 170;
+    this._orbitRTarget  = 170;
     this.currentDoorKey = doorKey;
 
-    this.isCarRunning = false;
-    this.carRotationSpeed = 0;
+    this.isCarRunning      = false;
+    this.carRotationSpeed  = 0;
 
-    // ── Reset interior la intrare ──
-    this.isInsideCar = false;
-    this._interiorTransitioning = false;
+    this.isInsideCar             = false;
+    this._interiorTransitioning  = false;
     this.interiorHUD.style.opacity = '0';
     if (this.interiorCabinLight) this.interiorCabinLight.intensity = 0;
     if (this.btnCarInterior) {
-      this.btnCarInterior.textContent   = '🚗 INTRĂ ÎN MAȘINĂ';
+      this.btnCarInterior.textContent      = 'INTRĂ ÎN MAȘINĂ';
       this.btnCarInterior.style.background = 'rgba(0, 255, 170, 0.12)';
       this.btnCarInterior.style.boxShadow  = 'none';
     }
 
     this.doorsOpen = false;
     this.doorActions = [];
-    this.doorsButton.textContent = '🚪 DESCHIDE UȘILE';
+    this.doorsButton.textContent    = 'DESCHIDE UȘILE';
     this.doorsButton.style.background = 'rgba(68, 170, 255, 0.2)';
 
     const isCar = this.currentAnimationType === 'car_showroom';
-    const isModelReady = !!this.modelCache[doorKey];
 
-    this._flash(() => {
+    // ── Încarcă modelul ÎNAINTE de flash — overlay rămâne pe ecran în timp ce se descarcă ──
+    this.overlay.style.transition = 'none';
+    this.overlay.style.opacity    = '1';
+    this.overlay.style.pointerEvents = 'none';
+
+    this._loadModel(doorKey, config, (entry) => {
+      if (!this.active) return;
+
+      // Modelul e gata — acum facem flash rapid și arătăm totul
+      this._flash(() => {
       const isFirstDoor = doorKey === 'floor1_door_001';
       const showGalaxy  = !!(config?.showGalaxy);
+      this._showGalaxy = showGalaxy;  // folosit în update() pentru lumini
 
       // ── Solar system — doar la prima ușă ──
       if (this.stars) this.stars.visible = isFirstDoor;
@@ -1167,8 +1246,8 @@ export class RoomSystem {
       if (this.galaxyStars)  this.galaxyStars.visible  = showGalaxy;
       if (this.galacticCore) this.galacticCore.visible  = showGalaxy;
       if (this.nebulaClouds) this.nebulaClouds.forEach(nc => { nc.mesh.visible = showGalaxy; });
-      if (this.galaxyLight1) this.galaxyLight1.intensity = showGalaxy ? 0.6 : 0;
-      if (this.galaxyLight2) this.galaxyLight2.intensity = showGalaxy ? 0.4 : 0;
+      if (this.galaxyLight1) this.galaxyLight1.intensity = showGalaxy ? 2.5 : 0;
+      if (this.galaxyLight2) this.galaxyLight2.intensity = showGalaxy ? 2.0 : 0;
 
       if (this.carPlatform) this.carPlatform.visible = isCar;
 
@@ -1182,6 +1261,7 @@ export class RoomSystem {
       }
 
       this._setCarLights(isCar);
+      this._setAstroLights(isFirstDoor);
 
       this.label.textContent = config ? config.label : doorKey;
       this.label.style.opacity = '1';
@@ -1195,8 +1275,6 @@ export class RoomSystem {
         this.carControls.style.pointerEvents = 'none';
       }
 
-      this._loadModel(doorKey, config, (entry) => {
-        if (!this.active) return;
         entry.object.visible = true;
         this.currentModel = entry.object;
         this.mixer = entry.mixer;
@@ -1205,20 +1283,35 @@ export class RoomSystem {
           this._findDoorAnimations(entry.gltf);
         }
 
-        this.loadingIndicator.style.opacity = '0';
         this.clock.getDelta();
-      });
-    }, isModelReady);
+      }, true); // isModelReady=true — modelul e deja loaded, flash ultra-rapid
+    });
   }
 
   _setCarLights(on) {
-    if (this.carKeyLight)    this.carKeyLight.intensity    = on ? 10 : 0;
-    if (this.carFillLeft)    this.carFillLeft.intensity    = on ? 7  : 0;
-    if (this.carFillRight)   this.carFillRight.intensity   = on ? 7  : 0;
-    if (this.carFrontLight)  this.carFrontLight.intensity  = on ? 6  : 0;
-    if (this.carBackLight)   this.carBackLight.intensity   = on ? 5  : 0;
-    if (this.carUnderLight)  this.carUnderLight.intensity  = on ? 2  : 0;
-    if (this.platformGlowLight) this.platformGlowLight.intensity = on ? 4 : 0;
+    if (this.carKeyLight)    this.carKeyLight.intensity    = on ? 12 : 0;
+    if (this.carFillLeft)    this.carFillLeft.intensity    = on ? 8  : 0;
+    if (this.carFillRight)   this.carFillRight.intensity   = on ? 8  : 0;
+    if (this.carFrontLight)  this.carFrontLight.intensity  = on ? 7  : 0;
+    if (this.carBackLight)   this.carBackLight.intensity   = on ? 6  : 0;
+    if (this.carUnderLight)  this.carUnderLight.intensity  = on ? 3  : 0;
+    if (this.platformGlowLight) this.platformGlowLight.intensity = on ? 5  : 0;
+    if (this.carSideLeft)    this.carSideLeft.intensity    = on ? 3  : 0;
+    if (this.carSideRight)   this.carSideRight.intensity   = on ? 3  : 0;
+    if (this.carTopRim)      this.carTopRim.intensity      = on ? 4  : 0;
+    if (this.carCloseFront)  this.carCloseFront.intensity  = on ? 3  : 0;
+    if (this.carCloseBack)   this.carCloseBack.intensity   = on ? 2  : 0;
+    if (this.carDiag1)       this.carDiag1.intensity       = on ? 3  : 0;
+    if (this.carDiag2)       this.carDiag2.intensity       = on ? 3  : 0;
+    if (this.carBounce)      this.carBounce.intensity      = on ? 2  : 0;
+  }
+
+  _setAstroLights(on) {
+    if (this.astroKeyLight)  this.astroKeyLight.intensity  = on ? 80 : 0;
+    if (this.astroFillLight) this.astroFillLight.intensity = on ? 60 : 0;
+    if (this.astroRimLight)  this.astroRimLight.intensity  = on ? 50 : 0;
+    // Ambient mai puternic in camera astronautului
+    if (this.astroAmbient)   this.astroAmbient.intensity   = on ? 3  : 0;
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -1258,6 +1351,7 @@ export class RoomSystem {
 
         if (this.carPlatform) this.carPlatform.visible = false;
         this._setCarLights(false);
+        this._setAstroLights(false);
         if (this.carFrontLight) this.carFrontLight.intensity = 0;
         if (this.carBackLight)  this.carBackLight.intensity  = 0;
 
@@ -1293,8 +1387,10 @@ export class RoomSystem {
     this.camera.fov = 75;
     this.camera.updateProjectionMatrix();
 
-    const fadeInMs  = isModelReady ? 200 : 400;
-    const fadeOutMs = isModelReady ? 300 : 600;
+    // Masina e aproape mereu pre-cached — flash ultra-rapid
+    const isCar     = this.currentAnimationType === 'car_showroom';
+    const fadeInMs  = isCar ? 80  : (isModelReady ? 200 : 400);
+    const fadeOutMs = isCar ? 120 : (isModelReady ? 300 : 600);
 
     requestAnimationFrame(() => {
       this.overlay.style.transition = `opacity ${fadeInMs / 1000}s ease-in`;
@@ -1312,12 +1408,16 @@ export class RoomSystem {
   }
 
   _animateEntry() {
-    const duration = 1200;
-    const start = performance.now();
+    const isCar = this.currentAnimationType === 'car_showroom';
 
-    const startZ = 4000;
-    const endZ   = this.currentAnimationType === 'car_showroom' ? 200 : 150;
-    const startFov = 72, endFov = 60;
+    // Masina: porneste de la z=350 (aproape) si dureaza 450ms
+    // Altele: pornesc de la z=4000 si dureaza 1200ms
+    const duration = isCar ? 450  : 1200;
+    const startZ   = isCar ? 350  : 4000;
+    const endZ     = isCar ? 200  : 150;
+    const startFov = isCar ? 65   : 72;
+    const endFov   = 60;
+    const start    = performance.now();
 
     this.camera.position.z = startZ;
     this.camera.fov = startFov;
@@ -1474,14 +1574,13 @@ export class RoomSystem {
 
     if (this.stars) this.stars.rotation.y = time * 0.006;
 
-    this.rimLight.intensity  = 1.5 + Math.sin(time * 1.5) * 0.3;
-    this.rimLight2.intensity = 1.2 + Math.cos(time * 1.2) * 0.3;
+    // rimLight oprit
 
     if (this.galaxyLight1) {
-      this.galaxyLight1.intensity = 0.6 + Math.sin(time * 0.4) * 0.15;
+      this.galaxyLight1.intensity = this._showGalaxy ? 2.5 + Math.sin(time * 0.4) * 0.5 : 0;
     }
     if (this.galaxyLight2) {
-      this.galaxyLight2.intensity = 0.4 + Math.cos(time * 0.5) * 0.1;
+      this.galaxyLight2.intensity = this._showGalaxy ? 2.0 + Math.cos(time * 0.5) * 0.4 : 0;
     }
 
     this.renderer.render(this.scene, this.camera);
