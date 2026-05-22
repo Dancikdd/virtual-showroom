@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { applyCorridor } from './corridor.js';
 import { DoorSystem } from './doorSystem.js';
-import { RoomSystem } from './roomSystem.js';
+import { RoomSystem } from './shared/roomSystem.js';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1410);
