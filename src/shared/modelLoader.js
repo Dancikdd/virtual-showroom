@@ -2,12 +2,13 @@
 //  MODEL LOADER
 //  Încarcă modele GLB, le cache-uiește și le pregătește pentru scenă
 //  Pentru a adăuga un model nou → doar adaugă în roomConfig.js
+//  Pentru mai multe modele per ușă → folosește extraModels[] în config
 // ══════════════════════════════════════════════════════════════
 
 import * as THREE from 'three';
 import { GLTFLoader }  from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-import { ROOM_CONFIG } from './roomConfig.js'; // shared/roomConfig.js
+import { ROOM_CONFIG } from './roomConfig.js'; 
 
 export class ModelLoader {
   constructor(scene) {
@@ -50,11 +51,11 @@ export class ModelLoader {
 
   // ══════════════════════════════════════════════════════════════
   //  LOAD (cu callback) — folosit la enter()
+  //  Suportă extraModels[] pentru mai multe GLB-uri per ușă
   // ══════════════════════════════════════════════════════════════
   load(doorKey, config, onReady) {
     if (this.modelCache[doorKey]) {
       const cached = this.modelCache[doorKey];
-      // Recreează mixer la fiecare intrare (starea animației se resetează)
       if (cached.gltf?.animations?.length > 0) {
         cached.mixer = new THREE.AnimationMixer(cached.object);
         if (config.animation !== 'car_showroom') {
@@ -66,18 +67,78 @@ export class ModelLoader {
     }
 
     if (!config.modelPath) {
-      const entry = this._makePlaceholder(config);
-      this.modelCache[doorKey] = entry;
-      onReady(entry);
-      return;
+    const entry = { object: null, mixer: null, gltf: null, extras: [] };
+    this.modelCache[doorKey] = entry;
+    onReady(entry);
+    return;
     }
+
+    // ── Câte modele trebuie încărcate? ──
+    const extraModels = config.extraModels || [];
+    const totalExtras = extraModels.length;
 
     this.loader.load(
       config.modelPath,
       (gltf) => {
         const entry = this._processGltf(gltf, config);
-        this.modelCache[doorKey] = entry;
-        onReady(entry);
+
+        // Dacă nu sunt extra modele, gata
+        if (totalExtras === 0) {
+          this.modelCache[doorKey] = entry;
+          onReady(entry);
+          return;
+        }
+
+        // Altfel încarcă și extra modelele
+        entry.extras = [];
+        let loaded = 0;
+
+        extraModels.forEach((extra) => {
+          this.loader.load(
+            extra.modelPath,
+            (extraGltf) => {
+              const extraEntry = this._processGltf(extraGltf, {
+                scale:          extra.scale    ?? 1,
+                offsetY:        extra.offsetY  ?? 0,
+                animation:      config.animation,
+                staticOptimize: extra.staticOptimize ?? config.staticOptimize ?? false,
+              });
+
+              // Poziționare custom per model extra
+              if (extra.position) {
+                extraEntry.object.position.set(
+                  extra.position.x ?? 0,
+                  extra.position.y ?? 0,
+                  extra.position.z ?? 0
+                );
+              }
+              if (extra.rotation) {
+                extraEntry.object.rotation.set(
+                  extra.rotation.x ?? 0,
+                  extra.rotation.y ?? 0,
+                  extra.rotation.z ?? 0
+                );
+              }
+
+              entry.extras.push(extraEntry);
+              loaded++;
+
+              if (loaded === totalExtras) {
+                this.modelCache[doorKey] = entry;
+                onReady(entry);
+              }
+            },
+            undefined,
+            (err) => {
+              console.warn(`[Extra] Nu am putut încărca ${extra.modelPath}:`, err);
+              loaded++;
+              if (loaded === totalExtras) {
+                this.modelCache[doorKey] = entry;
+                onReady(entry);
+              }
+            }
+          );
+        });
       },
       undefined,
       (err) => {
@@ -114,12 +175,29 @@ export class ModelLoader {
       this._boostCarMaterials(group);
     }
 
+    if (config.staticOptimize) {
+      group.traverse((child) => {
+        if (!child.isMesh) return;
+        child.matrixAutoUpdate = false;
+        child.updateMatrix();
+        child.frustumCulled = true;
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach(m => {
+          if (!m) return;
+          m.precision = 'lowp';
+          if (m.isMeshStandardMaterial) {
+            m.roughness = 1;
+            m.metalness = 0;
+            m.envMapIntensity = 0;
+          }
+          m.needsUpdate = true;
+        });
+      });
+    }
+
     let mixer = null;
     if (gltf.animations?.length > 0) {
       mixer = new THREE.AnimationMixer(group);
-      console.log('Animații disponibile:');
-      gltf.animations.forEach(clip => console.log(' -', clip.name));
-
       if (config.animation !== 'car_showroom') {
         this._playAnimations(mixer, gltf.animations);
       }
@@ -138,7 +216,7 @@ export class ModelLoader {
   }
 
   // ══════════════════════════════════════════════════════════════
-  //  PLACEHOLDER (când modelPath e null sau loading eșuat)
+  //  PLACEHOLDER
   // ══════════════════════════════════════════════════════════════
   _makePlaceholder(config) {
     const geo  = new THREE.BoxGeometry(80, 80, 80);
@@ -177,10 +255,11 @@ export class ModelLoader {
     });
   }
 
-  // ── Ascunde toate modelele din cache ──
+  // ── Ascunde toate modelele din cache (inclusiv extras) ──
   hideAll() {
     Object.values(this.modelCache).forEach(entry => {
       if (entry?.object) entry.object.visible = false;
+      if (entry?.extras) entry.extras.forEach(e => { if (e?.object) e.object.visible = false; });
     });
   }
 }

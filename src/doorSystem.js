@@ -2,8 +2,15 @@ import * as THREE from 'three';
 
 const DOOR_EXCLUDES = ['frame', 'tocul', 'rama', 'casing'];
 
+// Mapare manuală: mesh-uri din Blender cu număr greșit → doorKey corect
+// Format: 'floor_numar_mesh_lowercase' → 'doorKey'
+const MESH_NAME_OVERRIDES = {
+  'floor1:door004': 'floor1_door_002',
+};
+
 const DOOR_DIRECTION_OVERRIDES = {
   'floor1_door_001': -1,
+  'floor1_door_002': -1,
   'floor1_door_004': -1,
   'floor1_door_005': -1,
   'floor1_door_006': -1,
@@ -15,6 +22,7 @@ const DOOR_DIRECTION_OVERRIDES = {
 
 const DOOR_PIVOT_OVERRIDES = {
   'floor1_door_001': 'min',
+  'floor1_door_002': 'max',
   'floor1_door_004': 'max',
   'floor1_door_005': 'min',
   'floor1_door_006': 'max',
@@ -139,7 +147,8 @@ export class DoorSystem {
       }
 
       const num = getDoorNumber(node.name);
-      const key = num ? `${this.floorId}_door_${num}` : null;
+      const overrideKey = num ? MESH_NAME_OVERRIDES[`${this.floorId}:door${num}`] : null;
+      const key = overrideKey || (num ? `${this.floorId}_door_${num}` : null);
       
       if (!key) return;
 

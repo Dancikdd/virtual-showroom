@@ -50,8 +50,6 @@ export class AstroEnvironment {
   //  SISTEM SOLAR
   // ══════════════════════════════════════════════════════════════
   _createSolarSystem() {
-    const texLoader = new THREE.TextureLoader();
-
     this.sun = new THREE.Mesh(
       new THREE.SphereGeometry(200, 32, 32),
       new THREE.MeshBasicMaterial({ color: 0xffcc22 })
@@ -64,14 +62,13 @@ export class AstroEnvironment {
       new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.12 })
     ));
 
-    const BASE = 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/';
     const planetData = [
-      { color: 0xaaaaaa, tex: null,                          orbitR: 380,  size: 22, speed: 1.6,  name: 'Mercur',  atmo: null },
-      { color: 0xe8cda0, tex: null,                          orbitR: 580,  size: 38, speed: 1.17, name: 'Venus',   atmo: 0xffeeaa },
-      { color: 0x4488ff, tex: BASE + 'earth_atmos_2048.jpg', orbitR: 800,  size: 42, speed: 1.0,  name: 'Terra',   atmo: 0x4488ff },
-      { color: 0xff4422, tex: null,                          orbitR: 1050, size: 30, speed: 0.80, name: 'Marte',   atmo: 0xff6644 },
-      { color: 0xddaa88, tex: BASE + 'jupiter.jpg',          orbitR: 1450, size: 90, speed: 0.43, name: 'Jupiter', atmo: 0xddaa88 },
-      { color: 0xeedd99, tex: null,                          orbitR: 1900, size: 75, speed: 0.32, name: 'Saturn',  atmo: null },
+      { color: 0xaaaaaa, orbitR: 380,  size: 22, speed: 1.6,  name: 'Mercur',  atmo: null     },
+      { color: 0xe8cda0, orbitR: 580,  size: 38, speed: 1.17, name: 'Venus',   atmo: 0xffeeaa },
+      { color: 0x4488ff, orbitR: 800,  size: 42, speed: 1.0,  name: 'Terra',   atmo: 0x4488ff },
+      { color: 0xff4422, orbitR: 1050, size: 30, speed: 0.80, name: 'Marte',   atmo: 0xff6644 },
+      { color: 0xddaa88, orbitR: 1450, size: 90, speed: 0.43, name: 'Jupiter', atmo: 0xddaa88 },
+      { color: 0xeedd99, orbitR: 1900, size: 75, speed: 0.32, name: 'Saturn',  atmo: null     },
     ];
 
     planetData.forEach((pd) => {
@@ -93,8 +90,7 @@ export class AstroEnvironment {
       const mesh = new THREE.Mesh(
         new THREE.SphereGeometry(pd.size, 32, 32),
         new THREE.MeshStandardMaterial({
-          color: pd.tex ? 0xffffff : pd.color,
-          map: pd.tex ? texLoader.load(pd.tex) : null,
+          color: pd.color,
           roughness: 0.8, metalness: 0.0,
         })
       );

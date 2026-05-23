@@ -14,6 +14,8 @@ import { DoorModelManager } from '../doorManager.js';
 // ── Module per ușă ──
 import { AstroLights }      from '../rooms/floor1-door1/floor1-door1.lights.js';
 import { AstroEnvironment } from '../rooms/floor1-door1/floor1-door1.environment.js';
+import { GrassLights }      from '../rooms/floor1-door2/floor1-door2.lights.js';
+import { GrassEnvironment } from '../rooms/floor1-door2/floor1-door2.environment.js';
 import { CarLights }        from '../rooms/floor2-door1/floor2-door1.lights.js';
 import { CarEnvironment }   from '../rooms/floor2-door1/floor2-door1.environment.js';
 
@@ -58,13 +60,18 @@ export class RoomSystem {
     this.astroLights      = new AstroLights(this.scene);
     this.astroEnvironment = new AstroEnvironment(this.scene);
 
+    this.grassLights      = new GrassLights(this.scene);
+    this.grassEnvironment = new GrassEnvironment(this.scene);
+
     this.carLights      = new CarLights(this.scene);
     this.carEnvironment = new CarEnvironment(this.scene);
 
     // ── Stinge tot la start ──
     this.astroLights.off();
+    this.grassLights.off();
     this.carLights.off();
     this.astroEnvironment.setVisible(false);
+    this.grassEnvironment.setVisible(false);
     this.carEnvironment.setVisible(false);
   }
 
@@ -122,6 +129,7 @@ export class RoomSystem {
 
     const isCar       = this.currentAnimationType === 'car_showroom';
     const isAstronaut = doorKey === 'floor1_door_001';
+    const isGrass     = doorKey === 'floor1_door_002';
 
     if (!isCar) this.ui.setCursorGrab();
     else        this.ui.clearCursor();
@@ -129,6 +137,11 @@ export class RoomSystem {
 
     this.carControls.reset();
     this.camSystem.reset(this.currentAnimationType);
+
+    // Grass: camera la înălțime de om, nu sus în aer
+    if (doorKey === 'floor1_door_002') {
+      this.camSystem.camera.position.set(0, 60, 200);
+    }
 
     this.ui.setOverlayOpaque();
 
@@ -138,14 +151,24 @@ export class RoomSystem {
       this.camSystem.flash(this.currentAnimationType, true, () => {
         // ── Stinge tot ──
         this.astroLights.off();
+        this.grassLights.off();
         this.carLights.off();
         this.astroEnvironment.setVisible(false);
+        this.grassEnvironment.setVisible(false);
         this.carEnvironment.setVisible(false);
+        this.scene.background = new THREE.Color(0x00010a);
+        this.scene.fog = new THREE.FogExp2(0x00010a, 0.00005);
 
         // ── Activează ce trebuie ──
         if (isAstronaut) {
           this.astroLights.on();
           this.astroEnvironment.setVisible(true);
+        }
+        if (isGrass) {
+          this.grassLights.on();
+          this.grassEnvironment.setVisible(true);
+          this.scene.background = new THREE.Color(0x87ceeb);
+          this.scene.fog = new THREE.FogExp2(0xc8e8f0, 0.00008);
         }
         if (isCar) {
           this.carLights.on();
@@ -162,9 +185,19 @@ export class RoomSystem {
 
         this.ui.showLabel(config?.label || doorKey);
 
+        if (entry.object) {
         entry.object.visible = true;
         this.currentModel    = entry.object;
         this.mixer           = entry.mixer;
+      } else {
+        this.currentModel = null;
+        this.mixer        = null;
+      }
+
+        // Afișează și modelele extra (extraModels[] din config)
+        if (entry.extras) {
+          entry.extras.forEach(e => { if (e?.object) e.object.visible = true; });
+        }
 
         if (isCar && entry.gltf) {
           this.carControls.setupDoorAnimations(entry.gltf, this.mixer);
@@ -198,8 +231,10 @@ export class RoomSystem {
         this.mixer = null;
 
         this.astroLights.off();
+        this.grassLights.off();
         this.carLights.off();
         this.astroEnvironment.setVisible(false);
+        this.grassEnvironment.setVisible(false);
         this.carEnvironment.setVisible(false);
 
         this.camSystem.camera.fov = 60;
@@ -207,6 +242,7 @@ export class RoomSystem {
         this.camSystem.isInsideCar = false;
 
         this.scene.background = new THREE.Color(0x00010a);
+        this.scene.fog = new THREE.FogExp2(0x00010a, 0.00005);
         this.ui.clearCursor();
         this.ui.showSystemCursor();
 
@@ -231,6 +267,15 @@ export class RoomSystem {
     // ── Cameră ──
     this.camSystem.update(this.currentAnimationType, this.currentModel);
 
+    // Grass: camera la nivelul ierbii (y=8), nu sus la y=80
+    if (this.currentDoorKey === 'floor1_door_002') {
+      const cam = this.camSystem.camera;
+      const sy  = this.camSystem.smoothYaw;
+      const sp  = this.camSystem.smoothPitch;
+      cam.position.set(0, 60, 0);
+      cam.lookAt(Math.sin(sy) * 100, 8 + Math.sin(sp) * 100, -Math.cos(sy) * 100);
+    }
+
     // ── Model ──
     if (this.currentModel) {
       if (this.currentAnimationType === 'orbit' && this.currentDoorKey === 'floor1_door_001') {
@@ -247,6 +292,9 @@ export class RoomSystem {
         this.currentModel.rotation.x = Math.sin(time * 0.9) * 0.04;
         this.currentModel.rotation.z = Math.sin(time * 0.7 + 1.7) * 0.03;
 
+      } else if (this.currentDoorKey === 'floor1_door_002') {
+        this.currentModel.position.set(0, 0, 0);
+
       } else if (this.currentAnimationType === 'car_showroom') {
         this.currentModel.position.set(0, 0, 0);
         const cc = this.carControls;
@@ -262,6 +310,7 @@ export class RoomSystem {
 
     // ── Medii ──
     this.astroEnvironment.update(time);
+    this.grassEnvironment.update(time);
     this.carEnvironment.update(time, this.carControls.isCarRunning, this.carControls.carRotationTarget);
 
     // ── Lumini cabin ──

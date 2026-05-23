@@ -5,10 +5,13 @@
 
 import { config as floor1door1 } from '../rooms/floor1-door1/floor1-door1.config.js';
 import { config as floor2door1 } from '../rooms/floor2-door1/floor2-door1.config.js';
+import { config as floor1door2 } from '../rooms/floor1-door2/floor1-door2.config.js';
+
 
 export const ROOM_CONFIG = {
   'floor1_door_001': floor1door1,
-  'floor1_door_002': { label: 'Produs 2',  color: 0xff4488, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate', showGalaxy: false },
+  'floor1_door_002': floor1door2,
+  'floor1_door_003': { label: 'Produs 3',  color: 0x44ffaa, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate', showGalaxy: false },
   'floor1_door_003': { label: 'Produs 3',  color: 0x44ffaa, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate', showGalaxy: false },
   'floor1_door_004': { label: 'Produs 4',  color: 0xff8844, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate', showGalaxy: false },
   'floor1_door_005': { label: 'Produs 5',  color: 0x44aaff, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate', showGalaxy: false },
