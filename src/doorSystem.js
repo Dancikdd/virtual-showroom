@@ -28,7 +28,7 @@ const HOVER_ANGLE = Math.PI / 20;
 const OPEN_ANGLE = Math.PI / 2.3;
 
 const NORMAL_DOOR_SPEED = 0.03;
-const ELEVATOR_DOOR_SPEED = 0.04;
+const ELEVATOR_DOOR_SPEED = 0.08;
 
 function getDoorNumber(name) {
   const match = name.match(/(\d{3})/);

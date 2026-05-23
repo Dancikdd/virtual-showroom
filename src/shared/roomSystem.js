@@ -243,7 +243,9 @@ export class RoomSystem {
           80 + Math.sin(t * 0.7 + 1.2) * r * 0.45,
           Math.cos(t * 0.9 + 0.5) * r
         );
-        this.currentModel.rotation.y = time * 1.2;
+        this.currentModel.rotation.y = time * 0.5;
+        this.currentModel.rotation.x = Math.sin(time * 0.9) * 0.04;
+        this.currentModel.rotation.z = Math.sin(time * 0.7 + 1.7) * 0.03;
 
       } else if (this.currentAnimationType === 'car_showroom') {
         this.currentModel.position.set(0, 0, 0);

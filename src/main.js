@@ -111,9 +111,9 @@ let savedCameraPosition = null;
 let savedCameraYaw = Math.PI / 2;
 let savedInitialYaw = Math.PI / 2;
 
-const ELEVATOR_CLOSE_TIME = 3000;
-const ELEVATOR_WAIT_TIME = 3000;
-const ELEVATOR_OPEN_TIME = 3000;
+const ELEVATOR_CLOSE_TIME = 1800;
+const ELEVATOR_WAIT_TIME = 1200;
+const ELEVATOR_OPEN_TIME = 1800;
 
 // UI NAVIGARE
 const navContainer = document.createElement('div');
@@ -594,7 +594,7 @@ function animate() {
   }
 
   if (isMoving && targetPosition) {
-    camera.position.lerp(targetPosition, 0.08);
+    camera.position.lerp(targetPosition, 0.18);
 
     if (camera.position.distanceTo(targetPosition) < 1) {
       camera.position.copy(targetPosition);
@@ -606,8 +606,8 @@ function animate() {
   const targetPitch = -mouseY * Math.PI * 0.15;
 
   camera.rotation.order = 'YXZ';
-  camera.rotation.y += (currentTargetYaw - camera.rotation.y) * 0.05;
-  camera.rotation.x += (targetPitch - camera.rotation.x) * 0.05;
+  camera.rotation.y += (currentTargetYaw - camera.rotation.y) * 0.08;
+  camera.rotation.x += (targetPitch - camera.rotation.x) * 0.08;
 
   if (doorSystemFloor1) {
     doorSystemFloor1.update(raycaster, mouse, camera);

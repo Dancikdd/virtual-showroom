@@ -57,6 +57,9 @@ export class ModelLoader {
       // Recreează mixer la fiecare intrare (starea animației se resetează)
       if (cached.gltf?.animations?.length > 0) {
         cached.mixer = new THREE.AnimationMixer(cached.object);
+        if (config.animation !== 'car_showroom') {
+          this._playAnimations(cached.mixer, cached.gltf.animations);
+        }
       }
       onReady(cached);
       return;
@@ -116,9 +119,22 @@ export class ModelLoader {
       mixer = new THREE.AnimationMixer(group);
       console.log('Animații disponibile:');
       gltf.animations.forEach(clip => console.log(' -', clip.name));
+
+      if (config.animation !== 'car_showroom') {
+        this._playAnimations(mixer, gltf.animations);
+      }
     }
 
     return { object: group, mixer, gltf };
+  }
+
+  _playAnimations(mixer, animations) {
+    animations.forEach((clip) => {
+      const action = mixer.clipAction(clip);
+      action.setLoop(THREE.LoopRepeat, Infinity);
+      action.reset();
+      action.play();
+    });
   }
 
   // ══════════════════════════════════════════════════════════════
