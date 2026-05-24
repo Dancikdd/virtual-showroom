@@ -9,7 +9,7 @@ export const config = {
 
   extraModels: [
     {
-      modelPath: '/products/jabami_anime_tree_v2.glb',
+      modelPath: '/products/big_tree.glb',
       scale:     1,
       offsetY:   0,
       position:  { x: 80, y: 0, z: -50 },   

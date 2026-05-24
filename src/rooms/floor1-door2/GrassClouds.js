@@ -1,252 +1,399 @@
-// ══════════════════════════════════════════════════════════════
-//  GRASS CLOUDS  —  cinematic edition
+﻿// ══════════════════════════════════════════════════════════════
+//  GRASS CLOUDS  —  3D volumetric puff clusters
+//  Puffs use a baked noise texture (not a sphere SDF) so they
+//  look lumpy and organic, never round.
 // ══════════════════════════════════════════════════════════════
 
 import * as THREE from 'three';
 
+// ── BAKE PUFF TEXTURE ─────────────────────────────────────────
+// Returns a CanvasTexture: greyscale, alpha = cloud density.
+// Each texture is unique (seed) so no two puffs look identical.
+function bakePuffTex(seed = 0, W = 64, H = 64) {
+  // simple deterministic noise
+  function h(x, y) {
+    const s = Math.sin(x * 127.1 + y * 311.7 + seed * 74.3) * 43758.5453;
+    return s - Math.floor(s);
+  }
+  function valueNoise(x, y) {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const xf = x - xi, yf = y - yi;
+    const u = xf*xf*(3-2*xf), v = yf*yf*(3-2*yf);
+    return (h(xi,yi)*(1-u) + h(xi+1,yi)*u)*(1-v)
+         + (h(xi,yi+1)*(1-u) + h(xi+1,yi+1)*u)*v;
+  }
+  function fbm(x, y, oct) {
+    let val=0, amp=0.5, f=1;
+    for (let i=0;i<oct;i++){val+=amp*valueNoise(x*f,y*f);f*=2;amp*=0.5;}
+    return val;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(W, H);
+  const d   = img.data;
+
+  // Ellipse aspect ratio — randomised per seed so puffs aren't all round
+  const ax = 0.38 + h(seed, 1) * 0.22;   // x half-extent in UV [0.38..0.60]
+  const ay = 0.30 + h(seed, 2) * 0.18;   // y half-extent
+  const cx = 0.5 + (h(seed, 3) - 0.5) * 0.06;
+  const cy = 0.5 + (h(seed, 4) - 0.5) * 0.06;
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const u = x / W, v = y / H;
+
+      // Normalised ellipse distance [0..1], 0=centre
+      const dx = (u - cx) / ax;
+      const dy = (v - cy) / ay;
+      const ed = Math.sqrt(dx*dx + dy*dy);   // 1.0 = ellipse edge
+
+      // Warp the edge with fbm noise for lumpiness
+      const warpScale = 3.5;
+      const warp = fbm(u * warpScale + seed*0.37, v * warpScale + seed*0.51, 4) - 0.5;
+      const warpAmt = 0.30 + h(seed*2, 7) * 0.18;  // how lumpy
+      const warped = ed + warp * warpAmt;
+
+      // Soft density: 1 inside, 0 outside, smooth falloff
+      const density = Math.max(0, 1 - Math.pow(Math.max(0, warped), 1.4));
+      const bright  = Math.round(density * 255);
+
+      const i = (y * W + x) * 4;
+      d[i] = d[i+1] = d[i+2] = 255;   // white
+      d[i+3] = bright;                 // alpha = density
+    }
+  }
+
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// Pre-bake a pool of textures (reused across clouds)
+const TEX_POOL_SIZE = 16;
+let _texPool = null;
+function getTexPool() {
+  if (!_texPool) _texPool = Array.from({length: TEX_POOL_SIZE}, (_, i) => bakePuffTex(i * 3.7 + 1));
+  return _texPool;
+}
+
+// ── SHADERS ───────────────────────────────────────────────────
+// Each puff is a billboard quad textured with its noise shape.
+// We use ONE ShaderMaterial per cloud but store the tex index
+// as an instance attribute so each puff picks a different texture.
+// (WebGL 1 doesn't allow dynamic texture array indexing easily,
+// so we pick ONE texture per *cloud* draw call — each cloud mesh
+// is split into groups of same-texture puffs, or we just assign
+// one tex per Cloud3D instance. Simplest: each Cloud3D picks one
+// tex from the pool but uses a different seed per puff via uv offset.)
+
+const VERT = /* glsl */`
+attribute vec3  instOffset;
+attribute float instRadius;
+attribute float instTexOff;   // UV x-offset into the atlas (0..1 step)
+
+uniform vec3  uCamPos;
+uniform float uTime;
+uniform float uPhase;
+uniform float uBreath;
+
+varying vec2  vUv;
+varying vec3  vWorld;
+varying vec3  vCenter;
+varying float vRadius;
+varying float vTexOff;
+
+void main() {
+  vRadius  = instRadius;
+  vCenter  = instOffset;
+  vTexOff  = instTexOff;
+
+  float breath = 1.0 + sin(uTime * 0.00033 + uPhase) * uBreath;
+  float r = instRadius * breath * 1.08;
+
+  vec3 toCam = normalize(uCamPos - instOffset);
+  vec3 right  = normalize(cross(vec3(0.0, 1.0, 0.0), toCam));
+  vec3 up     = cross(toCam, right);
+
+  vec3 worldPos = instOffset + right * position.x * r + up * position.y * r;
+
+  vUv   = uv;                 // [0..1] across the quad
+  vWorld = worldPos;
+  gl_Position = projectionMatrix * viewMatrix * vec4(worldPos, 1.0);
+}
+`;
+
+const FRAG = /* glsl */`
+uniform sampler2D uTex;       // noise texture atlas (16 cols × 1 row)
+uniform float     uAtlasCols; // = 16.0
+uniform vec3  uCamPos;
+uniform vec3  uTint;
+uniform float uOpacity;
+uniform float uHazeStart;
+uniform float uHazeEnd;
+
+varying vec2  vUv;
+varying vec3  vWorld;
+varying vec3  vCenter;
+varying float vRadius;
+varying float vTexOff;
+
+void main() {
+  // Sample the puff's column in the atlas
+  float col  = vTexOff;                              // 0..1 (normalised column)
+  float wide = 1.0 / uAtlasCols;
+  vec2  uv   = vec2(col + vUv.x * wide, vUv.y);
+  float density = texture2D(uTex, uv).a;
+
+  // Each puff contributes a small fraction — they ADD UP in the core
+  float alpha = density * density * 0.38;            // pow≈2, max 0.38
+  if (alpha < 0.003) discard;
+
+  // Vertical shading based on quad UV (top = bright, bottom = shadow)
+  float ht  = vUv.y;   // 0=bottom, 1=top
+  vec3  clr = mix(vec3(0.84, 0.87, 0.93), vec3(1.0, 1.0, 1.0),
+                  smoothstep(0.2, 0.9, ht)) * uTint;
+
+  float dist = length(vCenter - uCamPos);
+  float haze = 1.0 - smoothstep(uHazeStart, uHazeEnd, dist);
+
+  gl_FragColor = vec4(clr, alpha * uOpacity * haze);
+}
+`;
+
+// ── HELPERS ───────────────────────────────────────────────────
+function hash(x, y) {
+  const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+// ── PUFF LAYOUT ───────────────────────────────────────────────
+function buildPuffLayout(seed) {
+  const rng = (s) => hash(seed + s * 7.31, seed * 3.17 + s);
+  const puffs = [];
+
+  const CORE = [
+    [  0.00,  0.00,  0.00, 1.00 ],
+    [ -0.55,  0.10,  0.15, 0.85 ],
+    [  0.55,  0.08, -0.12, 0.83 ],
+    [  0.00,  0.45,  0.04, 0.75 ],
+    [ -0.28,  0.42, -0.18, 0.65 ],
+    [  0.30,  0.40,  0.22, 0.63 ],
+    [  0.95, -0.05, -0.08, 0.72 ],
+    [ -0.95, -0.04,  0.08, 0.70 ],
+    [  0.00, -0.22,  0.00, 0.88 ],
+    [  0.45,  0.65, -0.05, 0.55 ],
+    [ -0.40,  0.68,  0.10, 0.53 ],
+    [  0.00,  0.80,  0.00, 0.48 ],
+  ];
+
+  CORE.forEach(([x, y, z, r], ci) => {
+    puffs.push({
+      x: x + (rng(ci*4)   - 0.5) * 0.12,
+      y: y + (rng(ci*4+1) - 0.5) * 0.12,
+      z: z + (rng(ci*4+2) - 0.5) * 0.20,
+      r: r * (0.90 + rng(ci*4+3) * 0.20),
+      t: Math.floor(rng(ci*4+4) * TEX_POOL_SIZE),  // texture index
+    });
+  });
+
+  for (let i = 0; i < 22; i++) {
+    const base = CORE[Math.floor(rng(i*5) * CORE.length)];
+    const a  = rng(i*3.7) * Math.PI * 2;
+    const el = (rng(i*2.3) - 0.5) * Math.PI * 0.5;
+    const d  = 0.38 + rng(i*1.1) * 0.42;
+    puffs.push({
+      x: base[0] + Math.cos(el) * Math.cos(a) * d,
+      y: base[1] + Math.sin(el) * d * 0.65 + 0.08,
+      z: base[2] + Math.cos(el) * Math.sin(a) * d * 0.70,
+      r: base[3] * (0.18 + rng(i*4.9) * 0.22),
+      t: Math.floor(rng(i*7+3) * TEX_POOL_SIZE),
+    });
+  }
+
+  return puffs;
+}
+
+// ── BUILD ATLAS ───────────────────────────────────────────────
+// Pack all puff textures side-by-side into one wide canvas.
+function buildAtlas(pool) {
+  const N = pool.length;
+  const W = 64, H = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width  = W * N;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  pool.forEach((tex, i) => ctx.drawImage(tex.image, i * W, 0));
+  const atlas = new THREE.CanvasTexture(canvas);
+  atlas.needsUpdate = true;
+  return atlas;
+}
+
+// ── CLOUD ENTITY ──────────────────────────────────────────────
+class Cloud3D {
+  constructor(scene, puffLayout, cloudPos, sizeScale, seed, atlas) {
+    this.scene  = scene;
+    this.baseY  = cloudPos.y;
+    this.limit  = 2800;
+
+    this.windSpd  = 0.08 + hash(seed,        seed+1) * 0.12;
+    this.windFreq = 0.00005 + hash(seed+2,   seed+3) * 0.00005;
+    this.windPh   = hash(seed+4, seed+5) * 1000;
+    this.bobAmp   = 8  + hash(seed+6,  seed+7) * 10;
+    this.bobFreq  = 0.00020 + hash(seed+8,   seed+9) * 0.00018;
+    this.bobPh    = seed * 1.37;
+
+    const N       = puffLayout.length;
+    const offsets = new Float32Array(N * 3);
+    const radii   = new Float32Array(N);
+    const texOffs = new Float32Array(N);
+
+    puffLayout.forEach((p, i) => {
+      offsets[i*3]     = cloudPos.x + p.x * sizeScale;
+      offsets[i*3 + 1] = cloudPos.y + p.y * sizeScale * 0.72;
+      offsets[i*3 + 2] = cloudPos.z + p.z * sizeScale * 0.60;
+      radii[i]         = p.r * sizeScale * 0.82;
+      texOffs[i]       = (p.t % TEX_POOL_SIZE) / TEX_POOL_SIZE;
+    });
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(
+      new Float32Array([-1,-1,0, 1,-1,0, 1,1,0, -1,1,0]), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(
+      new Float32Array([0,0, 1,0, 1,1, 0,1]), 2));
+    geo.setIndex(new THREE.BufferAttribute(new Uint16Array([0,1,2, 0,2,3]), 1));
+
+    const oAttr = new THREE.InstancedBufferAttribute(offsets, 3);
+    const rAttr = new THREE.InstancedBufferAttribute(radii,   1);
+    const tAttr = new THREE.InstancedBufferAttribute(texOffs, 1);
+    oAttr.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute('instOffset', oAttr);
+    geo.setAttribute('instRadius', rAttr);
+    geo.setAttribute('instTexOff', tAttr);
+    geo.instanceCount = N;
+
+    this._offsets = offsets;
+    this._oAttr   = oAttr;
+    this._N       = N;
+
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTex:       { value: atlas },
+        uAtlasCols: { value: TEX_POOL_SIZE },
+        uCamPos:    { value: new THREE.Vector3() },
+        uTint:      { value: new THREE.Color(1,1,1) },
+        uOpacity:   { value: 1.0 },
+        uHazeStart: { value: 1800 },
+        uHazeEnd:   { value: 5000 },
+        uTime:      { value: 0 },
+        uPhase:     { value: hash(seed+10, seed+11) * Math.PI * 2 },
+        uBreath:    { value: 0.008 + hash(seed+12, seed+13) * 0.010 },
+      },
+      vertexShader:   VERT,
+      fragmentShader: FRAG,
+      transparent:    true,
+      depthWrite:     false,
+      side:           THREE.DoubleSide,
+    });
+
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.frustumCulled = false;
+    scene.add(mesh);
+    this.mesh = mesh;
+    this.mat  = mat;
+  }
+
+  setTint(col)  { this.mat.uniforms.uTint.value.copy(col); }
+  setVisible(v) { this.mesh.visible = v; }
+
+  update(time, camera) {
+    const u = this.mat.uniforms;
+    u.uCamPos.value.copy(camera.position);
+    u.uTime.value = time;
+
+    const w     = this.windSpd + Math.sin(time * this.windFreq + this.windPh) * 0.04;
+    const bob   = Math.sin(time * this.bobFreq + this.bobPh) * this.bobAmp;
+    const currY = this.baseY + bob;
+    const dy    = currY - (this._lastY !== undefined ? this._lastY : currY);
+    this._lastY = currY;
+
+    const off = this._offsets;
+    for (let i = 0; i < this._N; i++) {
+      off[i*3]     += w;
+      off[i*3 + 1] += dy;
+      if (off[i*3] >  this.limit) off[i*3] -= this.limit * 2;
+      if (off[i*3] < -this.limit) off[i*3] += this.limit * 2;
+    }
+    this._oAttr.needsUpdate = true;
+  }
+
+  dispose() {
+    this.mesh.geometry.dispose();
+    this.mat.dispose();
+    this.scene.remove(this.mesh);
+  }
+}
+
+// ── PUBLIC API ────────────────────────────────────────────────
 export class GrassClouds {
-  constructor(scene) {
+  constructor(scene, camera) {
     this.scene   = scene;
-    this.objects = [];
+    this.camera  = camera || null;
     this.clouds  = [];
+    this._tint   = new THREE.Color(1,1,1);
+    this._sunDir = new THREE.Vector3(0.45, 0.85, 0.25).normalize();
+
+    // Build texture atlas once
+    this._atlas = buildAtlas(getTexPool());
     this._build();
   }
 
-  // ─── texture builder ───────────────────────────────────────
-  // Each cloud gets its own unique procedural texture so no two
-  // look alike. puffDefs is an array of puff descriptors that
-  // define the silhouette; lighting is added on top.
-  _makeTexture(puffDefs) {
-    const W = 1024, H = 512;
-    const canvas = document.createElement('canvas');
-    canvas.width = W; canvas.height = H;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, W, H);
+  setCamera(camera) { this.camera = camera; }
+  setSunDir(dir)    { this._sunDir.copy(dir).normalize(); }
 
-    // ── 1. Build a soft alpha mask for the whole cloud shape ──
-    // We draw into an offscreen canvas, then use it as a mask.
-    const mask = document.createElement('canvas');
-    mask.width = W; mask.height = H;
-    const mctx = mask.getContext('2d');
-
-    puffDefs.forEach(({ cx, cy, rx, ry }) => {
-      // Elliptical radial gradient — fades from opaque to fully
-      // transparent well inside the canvas boundary.
-      const r = Math.max(rx, ry);
-      const g = mctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-      g.addColorStop(0,    'rgba(0,0,0,1)');
-      g.addColorStop(0.55, 'rgba(0,0,0,0.85)');
-      g.addColorStop(0.82, 'rgba(0,0,0,0.30)');
-      g.addColorStop(1,    'rgba(0,0,0,0)');
-      mctx.save();
-      mctx.translate(cx, cy);
-      mctx.scale(rx / r, ry / r);
-      mctx.translate(-cx, -cy);
-      mctx.fillStyle = g;
-      mctx.fillRect(0, 0, W, H);
-      mctx.restore();
-    });
-
-    // ── 2. Paint the cloud colour layers ──────────────────────
-    // Use the mask as a clipping shape via destination-in so
-    // nothing bleeds outside the soft silhouette.
-
-    // 2a. Underside warm shadow (bottom third)
-    const shadowGrad = ctx.createLinearGradient(0, H * 0.45, 0, H);
-    shadowGrad.addColorStop(0,   'rgba(210,220,235,0)');
-    shadowGrad.addColorStop(0.5, 'rgba(195,208,228,0.55)');
-    shadowGrad.addColorStop(1,   'rgba(178,195,220,0.80)');
-    ctx.fillStyle = shadowGrad;
-    ctx.fillRect(0, 0, W, H);
-
-    // 2b. Main body — bright white core
-    const bodyGrad = ctx.createRadialGradient(W/2, H*0.28, 0, W/2, H*0.38, W*0.62);
-    bodyGrad.addColorStop(0,    'rgba(255,255,255,1)');
-    bodyGrad.addColorStop(0.30, 'rgba(253,253,255,0.97)');
-    bodyGrad.addColorStop(0.60, 'rgba(248,250,255,0.80)');
-    bodyGrad.addColorStop(0.85, 'rgba(240,244,252,0.40)');
-    bodyGrad.addColorStop(1,    'rgba(235,240,250,0)');
-    ctx.fillStyle = bodyGrad;
-    ctx.fillRect(0, 0, W, H);
-
-    // 2c. Highlight rim along the top — slightly warm
-    const rimGrad = ctx.createLinearGradient(0, 0, 0, H * 0.35);
-    rimGrad.addColorStop(0,   'rgba(255,253,248,0.70)');
-    rimGrad.addColorStop(1,   'rgba(255,253,248,0)');
-    ctx.fillStyle = rimGrad;
-    ctx.fillRect(0, 0, W, H);
-
-    // 2d. Per-puff specular brightspot at each lobe crown
-    puffDefs.forEach(({ cx, cy, rx, ry }) => {
-      const specY = cy - ry * 0.45;
-      const specR = Math.min(rx, ry) * 0.55;
-      const sg = ctx.createRadialGradient(cx, specY, 0, cx, specY, specR);
-      sg.addColorStop(0,   'rgba(255,255,255,0.55)');
-      sg.addColorStop(0.4, 'rgba(255,255,255,0.20)');
-      sg.addColorStop(1,   'rgba(255,255,255,0)');
-      ctx.fillStyle = sg;
-      ctx.fillRect(0, 0, W, H);
-    });
-
-    // 2e. Clip everything to the mask shape
-    ctx.globalCompositeOperation = 'destination-in';
-    ctx.drawImage(mask, 0, 0);
-    ctx.globalCompositeOperation = 'source-over';
-
-    return new THREE.CanvasTexture(canvas);
-  }
-
-  _makeStratusTexture() {
-    const W = 1024, H = 256;
-    const canvas = document.createElement('canvas');
-    canvas.width = W; canvas.height = H;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, W, H);
-
-    // Several overlapping wispy ellipses offset horizontally
-    const wisps = [
-      { cx: W*0.50, cy: H*0.5, rx: W*0.48, ry: H*0.30, op: 0.18 },
-      { cx: W*0.35, cy: H*0.5, rx: W*0.32, ry: H*0.22, op: 0.14 },
-      { cx: W*0.68, cy: H*0.5, rx: W*0.28, ry: H*0.20, op: 0.13 },
-      { cx: W*0.20, cy: H*0.5, rx: W*0.20, ry: H*0.16, op: 0.10 },
-      { cx: W*0.82, cy: H*0.5, rx: W*0.18, ry: H*0.14, op: 0.09 },
-    ];
-    wisps.forEach(({ cx, cy, rx, ry, op }) => {
-      const r = Math.max(rx, ry);
-      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-      g.addColorStop(0,    `rgba(248,250,255,${op})`);
-      g.addColorStop(0.55, `rgba(248,250,255,${op * 0.5})`);
-      g.addColorStop(1,    'rgba(248,250,255,0)');
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.scale(rx / r, ry / r);
-      ctx.translate(-cx, -cy);
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, W, H);
-      ctx.restore();
-    });
-    return new THREE.CanvasTexture(canvas);
-  }
-
-  // ─── puff layout presets ───────────────────────────────────
-  // Each preset is a different cloud silhouette.
-  _puffPresets() {
-    // Coords are in 0–1024 x 0–512 space
-    return [
-      // wide anvil
-      [
-        { cx:512, cy:280, rx:340, ry:220 },
-        { cx:310, cy:310, rx:230, ry:180 },
-        { cx:714, cy:305, rx:220, ry:175 },
-        { cx:512, cy:175, rx:200, ry:175 },
-        { cx:370, cy:200, rx:150, ry:140 },
-        { cx:655, cy:195, rx:145, ry:138 },
-      ],
-      // tall puffy tower
-      [
-        { cx:512, cy:300, rx:280, ry:210 },
-        { cx:512, cy:155, rx:210, ry:190 },
-        { cx:380, cy:250, rx:190, ry:170 },
-        { cx:644, cy:245, rx:185, ry:165 },
-        { cx:512, cy:85,  rx:160, ry:150 },
-      ],
-      // low and wide — classic cartoon cloud
-      [
-        { cx:512, cy:320, rx:380, ry:180 },
-        { cx:300, cy:290, rx:220, ry:175 },
-        { cx:724, cy:288, rx:210, ry:170 },
-        { cx:512, cy:220, rx:195, ry:165 },
-        { cx:390, cy:240, rx:145, ry:130 },
-        { cx:634, cy:238, rx:140, ry:128 },
-        { cx:512, cy:160, rx:120, ry:120 },
-      ],
-      // asymmetric drift
-      [
-        { cx:480, cy:295, rx:310, ry:200 },
-        { cx:680, cy:280, rx:240, ry:185 },
-        { cx:290, cy:310, rx:200, ry:165 },
-        { cx:560, cy:175, rx:185, ry:165 },
-        { cx:730, cy:175, rx:155, ry:140 },
-      ],
-      // compact fluffy
-      [
-        { cx:512, cy:290, rx:260, ry:195 },
-        { cx:360, cy:300, rx:195, ry:160 },
-        { cx:664, cy:298, rx:190, ry:158 },
-        { cx:512, cy:175, rx:180, ry:160 },
-        { cx:400, cy:200, rx:130, ry:118 },
-        { cx:622, cy:198, rx:125, ry:115 },
-      ],
-    ];
-  }
-
-  // ─── build ─────────────────────────────────────────────────
   _build() {
-    const presets = this._puffPresets();
-    // Build a unique texture for each cumulus cloud
-    const cumuTextures = presets.map(p => this._makeTexture(p));
-    const stratTex     = this._makeStratusTexture();
+    const templates = [0,1,2,3,4,5].map(s => buildPuffLayout(s * 53.7));
+    const sizeOpts  = [320, 360, 400, 440, 480, 520];
+    const gSpX = 1100, gSpZ = 1200;
+    const gRX  = 2200, gRZ  = 2400;
 
-    const cloudData = [
-      // cumulus — varied sizes, spread around the scene
-      { x: -600, y: 620, z: -400, w: 820,  h: 330, type: 'cumulus', ti: 0 },
-      { x:  480, y: 700, z: -680, w: 700,  h: 280, type: 'cumulus', ti: 1 },
-      { x:  780, y: 590, z:  200, w: 760,  h: 305, type: 'cumulus', ti: 2 },
-      { x: -310, y: 750, z:  560, w: 640,  h: 256, type: 'cumulus', ti: 3 },
-      { x:  140, y: 670, z: -200, w: 730,  h: 292, type: 'cumulus', ti: 4 },
-      { x:  980, y: 630, z: -120, w: 680,  h: 272, type: 'cumulus', ti: 0 },
-      { x: -860, y: 655, z:  330, w: 700,  h: 280, type: 'cumulus', ti: 2 },
-
-    ];
-
-    cloudData.forEach(({ x, y, z, w, h, type, ti }, idx) => {
-      const tex = type === 'stratus' ? stratTex : cumuTextures[ti % cumuTextures.length];
-      const mat = new THREE.SpriteMaterial({
-        map: tex, transparent: true, depthWrite: false,
-        opacity: type === 'stratus' ? 0.72 : 1.0,
-        blending: THREE.NormalBlending,
-      });
-      const sprite = new THREE.Sprite(mat);
-      sprite.scale.set(w, h, 1);
-      sprite.position.set(x, y, z);
-      sprite.frustumCulled = false;
-      this.scene.add(sprite);
-      this.objects.push(sprite);
-      this.clouds.push({
-        sprite, baseY: y,
-        driftSpeed: type === 'stratus'
-          ? 0.06 + Math.random() * 0.05
-          : 0.02 + Math.random() * 0.022,
-        bobAmp:   type === 'cumulus' ? 14 : 5,
-        bobFreq:  0.04 + Math.random() * 0.035,
-        bobPhase: idx * 1.13,
-        limit:    type === 'stratus' ? 1900 : 1500,
-      });
-    });
-  }
-
-  // ─── day/night tint ────────────────────────────────────────
-  tint(ambT) {
-    // Day: pure white. Dusk: peachy warm. Night: deep blue-grey.
-    const night = new THREE.Color(0x1a2540);
-    const dusk  = new THREE.Color(0xe8b490);
-    const day   = new THREE.Color(0xffffff);
-    const col = new THREE.Color();
-    if (ambT < 0.5) {
-      col.lerpColors(night, dusk, ambT * 2);
-    } else {
-      col.lerpColors(dusk, day, (ambT - 0.5) * 2);
+    let seed = 0;
+    for (let gx = -gRX; gx <= gRX; gx += gSpX) {
+      for (let gz = -gRZ; gz <= gRZ; gz += gSpZ) {
+        const jx  = (hash(seed, seed+1) - 0.5) * 340;
+        const jz  = (hash(seed+2, seed+3) - 0.5) * 340;
+        const y   = 940 + hash(seed+4, seed+5) * 180;
+        const sz  = sizeOpts[Math.floor(hash(seed+6, seed+7) * sizeOpts.length)];
+        const tpl = templates[Math.floor(hash(seed+8, seed+9) * templates.length)];
+        this.clouds.push(new Cloud3D(this.scene, tpl,
+          new THREE.Vector3(gx+jx, y, gz+jz), sz, seed, this._atlas));
+        seed++;
+      }
     }
-    this.clouds.forEach(c => c.sprite.material.color.copy(col));
   }
 
-  setVisible(v) { this.objects.forEach(o => { o.visible = v; }); }
+  tint(ambT) {
+    const night = new THREE.Color(0x6070a0);
+    const dusk  = new THREE.Color(0xffd0a0);
+    const day   = new THREE.Color(0xffffff);
+    if (ambT < 0.5) this._tint.lerpColors(night, dusk, ambT * 2);
+    else            this._tint.lerpColors(dusk,  day,  (ambT - 0.5) * 2);
+    this.clouds.forEach(c => c.setTint(this._tint));
+  }
 
-  update(time) {
-    this.clouds.forEach(c => {
-      c.sprite.position.x += c.driftSpeed;
-      if (c.sprite.position.x > c.limit) c.sprite.position.x = -c.limit;
-      c.sprite.position.y = c.baseY + Math.sin(time * c.bobFreq + c.bobPhase) * c.bobAmp;
-    });
+  setVisible(v) { this.clouds.forEach(c => c.setVisible(v)); }
+
+  update(time, camera) {
+    const cam = camera || this.camera;
+    if (!cam) return;
+    this.clouds.forEach(c => c.update(time, cam));
+  }
+
+  dispose() {
+    this.clouds.forEach(c => c.dispose());
+    this._atlas.dispose();
+    this.clouds = [];
   }
 }

@@ -1,13 +1,11 @@
 import * as THREE from 'three';
 
 // ── CONFIG ─────────────────────────────────────────────────
-const PETAL_COUNT  = 12;
-const SPAWN_RADIUS = 500;
-const SPAWN_HEIGHT = 600;
+const PETAL_COUNT  = 150;
+const SPAWN_RADIUS = 2600;
+const SPAWN_HEIGHT = 1600;
 
 // ── PROCEDURAL PETAL GEOMETRY ──────────────────────────────
-// A simple teardrop / petal shape built from a fan of triangles
-// in the XZ plane, slightly curved upward at the tip.
 function createPetalGeometry() {
   const SEGMENTS = 8;   // angular slices around the petal width
   const STEPS    = 6;   // lengthwise subdivisions for curvature
@@ -17,9 +15,7 @@ function createPetalGeometry() {
   const uvs      = [];
   const normals  = [];
 
-  // Half-width profile: petal is widest at ~30% from base, tapers to tip
   function halfWidth(t) {
-    // t = 0 (base) → 1 (tip)
     return Math.sin(t * Math.PI) * (1 - Math.pow(t - 0.3, 2) * 0.6);
   }
 
@@ -98,7 +94,6 @@ export class PetalRain {
     this._mesh.visible = false;
     this.scene.add(this._mesh);
 
-    // Dummy used to compose each instance transform
     this._dummy = new THREE.Object3D();
 
     // Seed per-petal data
@@ -134,10 +129,8 @@ export class PetalRain {
     for (let i = 0; i < PETAL_COUNT; i++) {
       const d = this._data[i];
 
-      // Fall — flat constant, nothing accumulates
-      d.y -= 40 * delta;
+      d.y -= 48 * delta;
 
-      // No sway — pure constant fall only
       d.x = d.startX;
       d.z = d.startZ;
 

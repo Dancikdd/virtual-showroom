@@ -315,7 +315,6 @@ export class RoomSystem {
 
     // ── Cameră ──
     if (this.currentDoorKey === 'floor1_door_002') {
-      // Manually smooth yaw/pitch without letting camSystem reset position
       const lerpSpeed = 0.04;
       this.camSystem.smoothYaw   += (this.camSystem.orbitYaw   - this.camSystem.smoothYaw)   * lerpSpeed;
       this.camSystem.smoothPitch += (this.camSystem.orbitPitch - this.camSystem.smoothPitch) * lerpSpeed;
@@ -367,7 +366,7 @@ export class RoomSystem {
 
     // ── Medii ──
     this.astroEnvironment.update(time);
-    this.grassEnvironment.update(delta);
+    this.grassEnvironment.update(delta, this.camSystem.camera);
     this.carEnvironment.update(time, this.carControls.isCarRunning, this.carControls.carRotationTarget);
 
     // ── Lumini cabin ──

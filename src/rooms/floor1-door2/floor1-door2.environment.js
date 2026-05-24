@@ -10,7 +10,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const GRASS_COUNT    = 600000;
 const FIELD_RADIUS   = 2500;
-const CYCLE_DURATION = 120; // seconds per full day
+const CYCLE_DURATION = 60; // seconds per full day
 
 // ── SHADERS ────────────────────────────────────────────────
 const GRASS_VERT = `
@@ -52,6 +52,7 @@ void main() {
 const GRASS_FRAG = `
 precision mediump float;
 varying float vHeight;
+uniform float uDarkness;
 void main() {
     vec3 baseColor = vec3(0.03, 0.18, 0.02);
     vec3 midColor  = vec3(0.08, 0.60, 0.06);
@@ -62,6 +63,9 @@ void main() {
     } else {
         color = mix(midColor, tipColor, (vHeight - 0.4) / 0.6);
     }
+    vec3 shadow = color * vec3(0.42, 0.54, 0.36);
+    color = mix(color, shadow, uDarkness);
+    color *= mix(1.0, 0.56, uDarkness);
     gl_FragColor = vec4(color, 1.0);
 }
 `;
@@ -74,6 +78,9 @@ export class GrassEnvironment {
     this._grassMesh = null;
     this._time      = 0;
     this._cycle     = 0.35; // start just after dawn
+
+    // Stores { mesh, originalColor } for each tree mesh child
+    this._treeMeshes = [];
 
     this._createGround();
     this._createSky();
@@ -147,7 +154,10 @@ export class GrassEnvironment {
     geo.setAttribute('heightScale', new THREE.InstancedBufferAttribute(new Float32Array(heightScales), 1));
 
     const mat = new THREE.RawShaderMaterial({
-      uniforms: { time: { value: 0 } },
+      uniforms: {
+        time:      { value: 0 },
+        uDarkness: { value: 0 },
+      },
       vertexShader:   GRASS_VERT,
       fragmentShader: GRASS_FRAG,
       side: THREE.DoubleSide,
@@ -159,20 +169,56 @@ export class GrassEnvironment {
     this.scene.add(this._grassMesh);
     this.objects.push(this._grassMesh);
   }
-  // -- LOAD TREE MODEL ─────────────────────
+
+  // ── LOAD TREE MODEL ────────────────────────────────────────
   _loadTree() {
-  const loader = new GLTFLoader();
-  loader.load('/products/jabami_anime_tree_v2.glb', (gltf) => {
-    const tree = gltf.scene;
-    tree.position.set(0, 0, -1700);  // far away
-    tree.scale.setScalar(40.0);
-    tree.traverse(child => {
-      if (child.isMesh) child.castShadow = true;
+    const loader = new GLTFLoader();
+    loader.load('/products/jabami_anime_tree_v2.glb', (gltf) => {
+      const tree = gltf.scene;
+      tree.position.set(0, 0, -1700);
+      tree.scale.setScalar(40.0);
+
+      tree.traverse(child => {
+        if (child.isMesh) {
+          child.castShadow = true;
+
+          // Clone material so we don't mutate shared GLTF materials
+          child.material = child.material.clone();
+
+          // Ensure the material supports color tinting
+          if (!child.material.color) {
+            child.material.color = new THREE.Color(1, 1, 1);
+          }
+
+          // Store original color for lerping
+          this._treeMeshes.push({
+            mesh:          child,
+            originalColor: child.material.color.clone(),
+          });
+        }
+      });
+
+      this.scene.add(tree);
+      this.objects.push(tree);
     });
-    this.scene.add(tree);
-    this.objects.push(tree);
-  });
-}
+  }
+
+  // ── TREE NIGHT TINT ────────────────────────────────────────
+  // ambT: 0 = full night, 1 = full day
+  _updateTreeDarkness(ambT) {
+    if (this._treeMeshes.length === 0) return;
+
+    // Night color: deep teal-indigo so the tree stays readable and a bit magical
+    const nightColor = new THREE.Color(0x0d1f2e);
+    // Gentle curve — never fully crushes the color
+    const t = Math.pow(ambT, 0.9) * 0.75 + 0.25;
+
+    for (const { mesh, originalColor } of this._treeMeshes) {
+      mesh.material.color.r = nightColor.r + (originalColor.r - nightColor.r) * t;
+      mesh.material.color.g = nightColor.g + (originalColor.g - nightColor.g) * t;
+      mesh.material.color.b = nightColor.b + (originalColor.b - nightColor.b) * t;
+    }
+  }
 
   // ── SKY COLOURS ────────────────────────────────────────────
   _updateSky(top, bot) {
@@ -198,7 +244,7 @@ export class GrassEnvironment {
   }
 
   // ── UPDATE ─────────────────────────────────────────────────
-  update(delta) {
+  update(delta, camera) {
     this._time  += delta;
     this._cycle  = (this._cycle + delta / CYCLE_DURATION) % 1;
 
@@ -206,12 +252,18 @@ export class GrassEnvironment {
       this._grassMesh.material.uniforms.time.value = this._time * 1000;
     }
 
-    this._clouds.update(this._time);
+    this._clouds.update(this._time, camera);
 
     if (this._isVisible && this._lights) {
       const { top, bot, ambT } = this._lights.update(this._cycle, this.scene);
       this._updateSky(top, bot);
       this._clouds.tint(ambT);
+      this._updateTreeDarkness(ambT);
+      if (this._grassMesh) {
+        const rawDark = 1.0 - ambT;
+        const fastDark = Math.pow(rawDark, 0.72);
+        this._grassMesh.material.uniforms.uDarkness.value = THREE.MathUtils.clamp(fastDark, 0, 1);
+      }
     }
 
     if (this._petalRain) this._petalRain.update(delta);
