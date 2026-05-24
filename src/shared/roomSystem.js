@@ -4,11 +4,15 @@
 // ══════════════════════════════════════════════════════════════
 
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass }     from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { BokehPass }      from 'three/examples/jsm/postprocessing/BokehPass.js';
 import { ROOM_CONFIG }   from './roomConfig.js';
 import { RoomUI }        from './ui.js';
 import { RoomCamera }    from './camera.js';
 import { ModelLoader }   from './modelLoader.js';
 import { CarControls }   from './carControls.js';
+import { GrassControls } from './grassControls.js';
 import { DoorModelManager } from '../doorManager.js';
 
 // ── Module per ușă ──
@@ -54,7 +58,32 @@ export class RoomSystem {
       () => this.currentModel
     );
 
-    this.carControls = new CarControls(() => this._toggleInterior());
+    this.carControls  = new CarControls(() => this._toggleInterior());
+    this.grassControls = new GrassControls();
+
+    // ── Free mouse look for grass room ──
+    this._grassMouseMove = (e) => {
+      if (this.currentDoorKey !== 'floor1_door_002') return;
+      if (!document.pointerLockElement) return;
+      const dx = e.movementX;
+      const dy = e.movementY;
+      this.camSystem.orbitYaw   += dx * 0.002;
+      this.camSystem.orbitPitch -= dy * 0.002;
+      this.camSystem.orbitPitch  = Math.max(-1.2, Math.min(1.2, this.camSystem.orbitPitch));
+    };
+    window.addEventListener('mousemove', this._grassMouseMove);
+
+    // Pointer lock change — ESC pauses look, click re-locks, not exit
+    document.addEventListener('pointerlockchange', () => {
+      if (this.currentDoorKey !== 'floor1_door_002') return;
+      if (!document.pointerLockElement) {
+        // Show the circle cursor, not the hand
+        this.ui.clearCursor();
+        document.body.style.cursor = 'default';
+      }
+    });
+
+    // Click to re-lock is added/removed per room (see enable/disable below)
 
     // ── Module per ușă ──
     this.astroLights      = new AstroLights(this.scene);
@@ -62,9 +91,19 @@ export class RoomSystem {
 
     this.grassLights      = new GrassLights(this.scene);
     this.grassEnvironment = new GrassEnvironment(this.scene);
-
+    this.grassEnvironment.setLights(this.grassLights);
+    
     this.carLights      = new CarLights(this.scene);
     this.carEnvironment = new CarEnvironment(this.scene);
+
+    // ── Post-processing (grass DOF blur) ──
+    this._grassComposer = new EffectComposer(renderer);
+    this._grassComposer.addPass(new RenderPass(this.scene, this.camSystem.camera));
+    this._grassComposer.addPass(new BokehPass(this.scene, this.camSystem.camera, {
+      focus:    400,
+      aperture: 0.00001,
+      maxblur:  0.004,
+    }));
 
     // ── Stinge tot la start ──
     this.astroLights.off();
@@ -138,9 +177,14 @@ export class RoomSystem {
     this.carControls.reset();
     this.camSystem.reset(this.currentAnimationType);
 
-    // Grass: camera la înălțime de om, nu sus în aer
-    if (doorKey === 'floor1_door_002') {
+    if (isGrass) {
       this.camSystem.camera.position.set(0, 60, 200);
+      this.grassControls.enable(this.camSystem.camera);
+      document.body.requestPointerLock();
+      this._grassClickLock = () => {
+        if (!document.pointerLockElement) document.body.requestPointerLock();
+      };
+      window.addEventListener('click', this._grassClickLock);
     }
 
     this.ui.setOverlayOpaque();
@@ -186,15 +230,14 @@ export class RoomSystem {
         this.ui.showLabel(config?.label || doorKey);
 
         if (entry.object) {
-        entry.object.visible = true;
-        this.currentModel    = entry.object;
-        this.mixer           = entry.mixer;
-      } else {
-        this.currentModel = null;
-        this.mixer        = null;
-      }
+          entry.object.visible = true;
+          this.currentModel    = entry.object;
+          this.mixer           = entry.mixer;
+        } else {
+          this.currentModel = null;
+          this.mixer        = null;
+        }
 
-        // Afișează și modelele extra (extraModels[] din config)
         if (entry.extras) {
           entry.extras.forEach(e => { if (e?.object) e.object.visible = true; });
         }
@@ -219,6 +262,12 @@ export class RoomSystem {
     this.ui.hideLoading();
     this.carControls.hide();
     this.carLights.cabinLight.intensity = 0;
+    this.grassControls.disable();
+    if (document.pointerLockElement) document.exitPointerLock();
+    if (this._grassClickLock) {
+      window.removeEventListener('click', this._grassClickLock);
+      this._grassClickLock = null;
+    }
 
     requestAnimationFrame(() => {
       this.ui.fadeIn(150, () => {
@@ -265,15 +314,23 @@ export class RoomSystem {
     if (this.mixer) this.mixer.update(delta);
 
     // ── Cameră ──
-    this.camSystem.update(this.currentAnimationType, this.currentModel);
-
-    // Grass: camera la nivelul ierbii (y=8), nu sus la y=80
     if (this.currentDoorKey === 'floor1_door_002') {
+      // Manually smooth yaw/pitch without letting camSystem reset position
+      const lerpSpeed = 0.04;
+      this.camSystem.smoothYaw   += (this.camSystem.orbitYaw   - this.camSystem.smoothYaw)   * lerpSpeed;
+      this.camSystem.smoothPitch += (this.camSystem.orbitPitch - this.camSystem.smoothPitch) * lerpSpeed;
+      const sy = this.camSystem.smoothYaw;
+      const sp = this.camSystem.smoothPitch;
       const cam = this.camSystem.camera;
-      const sy  = this.camSystem.smoothYaw;
-      const sp  = this.camSystem.smoothPitch;
-      cam.position.set(0, 60, 0);
-      cam.lookAt(Math.sin(sy) * 100, 8 + Math.sin(sp) * 100, -Math.cos(sy) * 100);
+      this.grassControls.update(delta, cam);
+      cam.position.y = 60;
+      cam.lookAt(
+        cam.position.x + Math.sin(sy) * 100,
+        60             + Math.sin(sp) * 100,
+        cam.position.z - Math.cos(sy) * 100,
+      );
+    } else {
+      this.camSystem.update(this.currentAnimationType, this.currentModel);
     }
 
     // ── Model ──
@@ -310,12 +367,17 @@ export class RoomSystem {
 
     // ── Medii ──
     this.astroEnvironment.update(time);
-    this.grassEnvironment.update(time);
+    this.grassEnvironment.update(delta);
     this.carEnvironment.update(time, this.carControls.isCarRunning, this.carControls.carRotationTarget);
 
     // ── Lumini cabin ──
     this.carLights.updateCabin(this.camSystem.isInsideCar, this.carControls.isCarRunning, time);
 
-    this.renderer.render(this.scene, this.camSystem.camera);
+    // ── Render ──
+    if (this.currentDoorKey === 'floor1_door_002') {
+      this._grassComposer.render();
+    } else {
+      this.renderer.render(this.scene, this.camSystem.camera);
+    }
   }
 }

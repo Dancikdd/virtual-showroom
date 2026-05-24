@@ -1,207 +1,219 @@
-import * as THREE from 'three';
-import { GLTFLoader }  from 'three/addons/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+// ══════════════════════════════════════════════════════════════
+//  FLOOR 1 - DOOR 2 — Grass Environment
+// ══════════════════════════════════════════════════════════════
 
-const GRASS_COUNT  = 80000;
-const FIELD_RADIUS = 2000;
+import * as THREE from 'three';
+import { PetalRain }         from './PetalRain.js';
+import { GrassClouds }       from './GrassClouds.js';
+import { GrassLights, sampleSkyGradient } from './floor1-door2.lights.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+const GRASS_COUNT    = 600000;
+const FIELD_RADIUS   = 2500;
+const CYCLE_DURATION = 120; // seconds per full day
+
+// ── SHADERS ────────────────────────────────────────────────
+const GRASS_VERT = `
+uniform mat4 projectionMatrix;
+uniform mat4 modelViewMatrix;
+uniform float time;
+
+attribute vec3 position;
+attribute vec2 uv;
+attribute vec3 terrPosi;
+attribute float angle;
+attribute float lean;
+attribute float heightScale;
+
+varying float vHeight;
+
+vec3 rotateY(vec3 v, float a) {
+    float s = sin(a);
+    float c = cos(a);
+    return vec3(c * v.x - s * v.z, v.y, s * v.x + c * v.z);
+}
+
+void main() {
+    vHeight = uv.y;
+    vec3 p = position;
+    p.y *= heightScale;
+    p.x += lean * p.y * 1.2;
+    float wind = vHeight * vHeight * 0.25;
+    float phase = time * 0.0010 + terrPosi.x * 0.9 + terrPosi.z * 0.7;
+    p.x += sin(phase + angle) * wind * 1.8;
+    p.z += cos(phase * 0.8) * wind * 1.3;
+    p.x += sin(time * 0.0018 + angle * 1.9) * vHeight * 0.12;
+    p = rotateY(p, angle);
+    p += terrPosi;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+}
+`;
+
+const GRASS_FRAG = `
+precision mediump float;
+varying float vHeight;
+void main() {
+    vec3 baseColor = vec3(0.03, 0.18, 0.02);
+    vec3 midColor  = vec3(0.08, 0.60, 0.06);
+    vec3 tipColor  = vec3(0.22, 0.92, 0.10);
+    vec3 color;
+    if (vHeight < 0.4) {
+        color = mix(baseColor, midColor, vHeight / 0.4);
+    } else {
+        color = mix(midColor, tipColor, (vHeight - 0.4) / 0.6);
+    }
+    gl_FragColor = vec4(color, 1.0);
+}
+`;
 
 export class GrassEnvironment {
   constructor(scene) {
     this.scene      = scene;
     this.objects    = [];
     this._isVisible = false;
-    this._dummy     = new THREE.Object3D();
-    this._iMesh     = null;
-    this._grassData = [];
+    this._grassMesh = null;
+    this._time      = 0;
+    this._cycle     = 0.35; // start just after dawn
 
     this._createGround();
     this._createSky();
-    this._createClouds();
-    this._loadAndScatterGrass();
+    this._createGrass();
+    this._loadTree();
+
+    this._clouds    = new GrassClouds(scene);
+    this._petalRain = new PetalRain(scene);
+
+    // Note: GrassLights is created by RoomSystem and passed in via setLights()
+    this._lights = null;
 
     this.setVisible(false);
   }
 
-  // ── SUPRAFATA VERDE ─────────────────────────────────────────
+  // Called by RoomSystem after construction
+  setLights(grassLights) {
+    this._lights = grassLights;
+  }
+
+  // ── GROUND ─────────────────────────────────────────────────
   _createGround() {
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(FIELD_RADIUS * 2 + 600, FIELD_RADIUS * 2 + 600),
-      new THREE.MeshLambertMaterial({ color: 0x3a9e22 })
+      new THREE.MeshLambertMaterial({ color: 0x0a2a06 })
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = 0;
+    ground.receiveShadow = true;
     this.scene.add(ground);
     this.objects.push(ground);
   }
 
-_loadAndScatterGrass() {
-  const SEGMENTS = 6;
+  // ── SKY SPHERE ─────────────────────────────────────────────
+  _createSky() {
+    const geo   = new THREE.SphereGeometry(4000, 32, 16);
+    const count = geo.attributes.position.count;
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+    this._sky = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+      vertexColors: true,
+      side: THREE.BackSide,
+    }));
+    this._sky.frustumCulled = false;
+    this.scene.add(this._sky);
+    this.objects.push(this._sky);
+    this._skyPos = geo.attributes.position.array;
+  }
 
-  const makeBladeGeo = () => {
-    const positions = [];
-    const normals   = [];
-    const uvs       = [];
-    const indices   = [];
+  // ── GRASS ──────────────────────────────────────────────────
+  _createGrass() {
+    const bladeW = 3.5, bladeH = 28;
+    const positions    = [bladeW,0,0, -bladeW,0,0, 0,bladeH,0];
+    const uvs          = [1,0, 0,0, 0.5,1];
+    const indices      = [0,1,2];
+    const terrPosis=[], angles=[], leans=[], heightScales=[];
 
-    const w    = 0.6 + Math.random() * 0.4;
-    const h    = 6   + Math.random() * 8;
-    const lean = 0.3 + Math.random() * 0.5;
-    const curve = 0.5 + Math.random() * 0.5;
-
-    for (let i = 0; i <= SEGMENTS; i++) {
-      const t    = i / SEGMENTS;
-      const segW = w * (1 - t * 0.85);
-      const x    = lean * Math.pow(t, curve) * h;
-      const y    = t * h;
-
-      positions.push(-segW + x, y, 0,  segW + x, y, 0);
-      normals.push(0, 0, 1,  0, 0, 1);
-      uvs.push(0, t,  1, t);
-
-      if (i < SEGMENTS) {
-        const b = i * 2;
-        indices.push(b, b+1, b+2,  b+1, b+3, b+2);
-      }
+    for (let i = 0; i < GRASS_COUNT; i++) {
+      terrPosis.push((Math.random()-0.5)*FIELD_RADIUS*2, 0, (Math.random()-0.5)*FIELD_RADIUS*2);
+      angles.push(Math.random()*Math.PI*2);
+      leans.push((Math.random()-0.5)*0.2);
+      heightScales.push(0.6+Math.random()*0.8);
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('normal',   new THREE.Float32BufferAttribute(normals, 3));
-    geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
+    const geo = new THREE.InstancedBufferGeometry();
+    geo.instanceCount = GRASS_COUNT;
+    geo.setAttribute('position',    new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('uv',          new THREE.Float32BufferAttribute(uvs, 2));
     geo.setIndex(indices);
-    return geo;
-  };
+    geo.setAttribute('terrPosi',    new THREE.InstancedBufferAttribute(new Float32Array(terrPosis), 3));
+    geo.setAttribute('angle',       new THREE.InstancedBufferAttribute(new Float32Array(angles), 1).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute('lean',        new THREE.InstancedBufferAttribute(new Float32Array(leans), 1));
+    geo.setAttribute('heightScale', new THREE.InstancedBufferAttribute(new Float32Array(heightScales), 1));
 
-  const COLORS = [0x2d8c1a, 0x3a9e22, 0x4db32a, 0x228b22, 0x56c43a];
-
-  this._grassData = [];
-  this._bladeMeshes = [];
-
-  // Grupăm câte ~500 instanțe per geometrie pt performanță
-  const BATCH = 500;
-  const batches = Math.ceil(GRASS_COUNT / BATCH);
-
-  for (let b = 0; b < batches; b++) {
-    const count = Math.min(BATCH, GRASS_COUNT - b * BATCH);
-    const geo = makeBladeGeo();
-    const color = COLORS[b % COLORS.length];
-    const mat = new THREE.MeshLambertMaterial({
-      color,
+    const mat = new THREE.RawShaderMaterial({
+      uniforms: { time: { value: 0 } },
+      vertexShader:   GRASS_VERT,
+      fragmentShader: GRASS_FRAG,
       side: THREE.DoubleSide,
     });
 
-    const iMesh = new THREE.InstancedMesh(geo, mat, count);
-    iMesh.frustumCulled = false;
-
-    const d = this._dummy;
-    for (let i = 0; i < count; i++) {
-      const globalIdx = b * BATCH + i;
-      const x = (Math.random() - 0.5) * FIELD_RADIUS * 2;
-      const z = (Math.random() - 0.5) * FIELD_RADIUS * 2;
-      const rotY = Math.random() * Math.PI * 2;
-      const scale = 0.9 + Math.random() * 0.8;
-
-      this._grassData.push({
-        x, z, rotY, scale,
-        phase: Math.random() * Math.PI * 2,
-        speed: 0.9 + Math.random() * 0.9,
-        lean:  0.04 + Math.random() * 0.06,
-        batchIdx: b,
-        localIdx: i,
-      });
-
-      d.position.set(x, 0, z);
-      d.rotation.set(0, rotY, 0);
-      d.scale.setScalar(scale);
-      d.updateMatrix();
-      iMesh.setMatrixAt(i, d.matrix);
-    }
-
-    iMesh.instanceMatrix.needsUpdate = true;
-    iMesh.castShadow = true;
-    iMesh.visible = this._isVisible;
-
-    this.scene.add(iMesh);
-    this.objects.push(iMesh);
-    this._bladeMeshes.push(iMesh);
+    this._grassMesh = new THREE.Mesh(geo, mat);
+    this._grassMesh.frustumCulled = false;
+    this._grassMesh.visible = false;
+    this.scene.add(this._grassMesh);
+    this.objects.push(this._grassMesh);
   }
-
-  console.log(`[Grass] ${GRASS_COUNT} fire procedurale generate`);
+  // -- LOAD TREE MODEL ─────────────────────
+  _loadTree() {
+  const loader = new GLTFLoader();
+  loader.load('/products/jabami_anime_tree_v2.glb', (gltf) => {
+    const tree = gltf.scene;
+    tree.position.set(0, 0, -1700);  // far away
+    tree.scale.setScalar(40.0);
+    tree.traverse(child => {
+      if (child.isMesh) child.castShadow = true;
+    });
+    this.scene.add(tree);
+    this.objects.push(tree);
+  });
 }
 
-  // ── CER ────────────────────────────────────────────────────
-  _createSky() {
-    const geo    = new THREE.SphereGeometry(4000, 32, 16);
-    const colors = [];
-    const pos    = geo.attributes.position.array;
-    for (let i = 0; i < pos.length; i += 3) {
-      const t = Math.max(0, Math.min(1, (pos[i+1] + 4000) / 8000));
-      colors.push(0.4 + t*0.1, 0.65 + t*0.1, 0.9 + t*0.05);
+  // ── SKY COLOURS ────────────────────────────────────────────
+  _updateSky(top, bot) {
+    const pos  = this._skyPos;
+    const cols = this._sky.geometry.attributes.color;
+    for (let i = 0; i < cols.count; i++) {
+      const t = Math.max(0, Math.min(1, (pos[i*3+1] + 4000) / 8000));
+      cols.setXYZ(i,
+        bot.r + (top.r - bot.r) * t,
+        bot.g + (top.g - bot.g) * t,
+        bot.b + (top.b - bot.b) * t,
+      );
     }
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    this.sky = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide }));
-    this.scene.add(this.sky);
-    this.objects.push(this.sky);
+    cols.needsUpdate = true;
   }
 
-  // ── NORI ───────────────────────────────────────────────────
-  _createClouds() {
-    this.clouds = [];
-    const cloudData = [
-      { x: -600, y: 350, z: -400, scale: 1.4 },
-      { x:  400, y: 420, z: -600, scale: 1.0 },
-      { x:  700, y: 300, z:  200, scale: 1.2 },
-      { x: -300, y: 480, z:  500, scale: 0.8 },
-      { x:  100, y: 390, z: -200, scale: 1.1 },
-    ];
-    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false });
-    cloudData.forEach(({ x, y, z, scale }) => {
-      const group = new THREE.Group();
-      [
-        { ox: 0,   oy: 0,  oz: 0,  r: 60 },
-        { ox: 55,  oy: -8, oz: 10, r: 45 },
-        { ox: -50, oy: -5, oz: -5, r: 42 },
-        { ox: 20,  oy: 22, oz: 5,  r: 38 },
-      ].forEach(p => {
-        const mesh = new THREE.Mesh(new THREE.SphereGeometry(p.r, 10, 8), mat.clone());
-        mesh.position.set(p.ox, p.oy, p.oz);
-        group.add(mesh);
-      });
-      group.position.set(x, y, z);
-      group.scale.setScalar(scale);
-      this.scene.add(group);
-      this.clouds.push({ group, baseY: y, speed: 0.04 + Math.random() * 0.03 });
-      this.objects.push(group);
-    });
+  // ── VISIBILITY ─────────────────────────────────────────────
+  setVisible(v) {
+    this._isVisible = v;
+    this.objects.forEach(o => { o.visible = v; });
+    this._clouds.setVisible(v);
+    if (this._petalRain) this._petalRain.setVisible(v);
   }
-
-  // ── VIZIBILITATE ───────────────────────────────────────────
-        setVisible(v) {
-        this._isVisible = v;
-        this.objects.forEach(o => { o.visible = v; });
-        if (this._bladeMeshes) this._bladeMeshes.forEach(m => { m.visible = v; });
-        }
 
   // ── UPDATE ─────────────────────────────────────────────────
-        update(time) {
-            // Vant subtil pe fiecare fir
-        if (this._bladeMeshes?.length && this._grassData.length) {
-        const d = this._dummy;
-        this._grassData.forEach((p, i) => {
-            const wind = Math.sin(time * p.speed + p.phase + p.x * 0.003) * p.lean;
-            d.position.set(p.x, 0, p.z);
-            d.rotation.set(wind * 0.3, p.rotY, wind);
-            d.scale.setScalar(p.scale);
-            d.updateMatrix();
-            this._bladeMeshes[p.batchIdx].setMatrixAt(p.localIdx, d.matrix);
-        });
-        this._bladeMeshes.forEach(m => { m.instanceMatrix.needsUpdate = true; });
-        }
+  update(delta) {
+    this._time  += delta;
+    this._cycle  = (this._cycle + delta / CYCLE_DURATION) % 1;
 
-    this.clouds.forEach((c, i) => {
-      c.group.position.x += c.speed;
-      c.group.position.y  = c.baseY + Math.sin(time * 0.12 + i) * 12;
-      if (c.group.position.x > 1200) c.group.position.x = -1200;
-    });
+    if (this._grassMesh) {
+      this._grassMesh.material.uniforms.time.value = this._time * 1000;
+    }
+
+    this._clouds.update(this._time);
+
+    if (this._isVisible && this._lights) {
+      const { top, bot, ambT } = this._lights.update(this._cycle, this.scene);
+      this._updateSky(top, bot);
+      this._clouds.tint(ambT);
+    }
+
+    if (this._petalRain) this._petalRain.update(delta);
   }
 }
