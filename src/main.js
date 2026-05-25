@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { applyCorridor } from './corridor.js';
 import { DoorSystem } from './doorSystem.js';
-import { RoomSystem } from './roomSystem.js';
+import { RoomSystem } from './shared/roomSystem.js';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1410);
@@ -111,9 +111,9 @@ let savedCameraPosition = null;
 let savedCameraYaw = Math.PI / 2;
 let savedInitialYaw = Math.PI / 2;
 
-const ELEVATOR_CLOSE_TIME = 3000;
-const ELEVATOR_WAIT_TIME = 3000;
-const ELEVATOR_OPEN_TIME = 3000;
+const ELEVATOR_CLOSE_TIME = 1800;
+const ELEVATOR_WAIT_TIME = 1200;
+const ELEVATOR_OPEN_TIME = 1800;
 
 // UI NAVIGARE
 const navContainer = document.createElement('div');
@@ -457,7 +457,7 @@ loader.load(
     corridorFloor1.rotation.y = Math.PI / 2;
     corridorFloor1.updateMatrixWorld(true);
 
-    corridorFloor2 = corridorFloor1.clone(true);
+    corridorFloor2 = gltf.scene.clone(true);
     corridorFloor2.position.y += FLOOR_HEIGHT;
     corridorFloor2.updateMatrixWorld(true);
 
@@ -528,10 +528,10 @@ loader.load(
     purpleLight4.position.y += FLOOR_HEIGHT;
     scene.add(purpleLight4);
 
-    doorSystemFloor1 = new DoorSystem(scene, camera);
+    doorSystemFloor1 = new DoorSystem(scene, camera, 'floor1');
     doorSystemFloor1.register(corridorFloor1);
 
-    doorSystemFloor2 = new DoorSystem(scene, camera);
+    doorSystemFloor2 = new DoorSystem(scene, camera, 'floor2');
     doorSystemFloor2.register(corridorFloor2);
 
     activeDoorSystem = doorSystemFloor1;
@@ -594,7 +594,7 @@ function animate() {
   }
 
   if (isMoving && targetPosition) {
-    camera.position.lerp(targetPosition, 0.08);
+    camera.position.lerp(targetPosition, 0.18);
 
     if (camera.position.distanceTo(targetPosition) < 1) {
       camera.position.copy(targetPosition);
@@ -606,8 +606,8 @@ function animate() {
   const targetPitch = -mouseY * Math.PI * 0.15;
 
   camera.rotation.order = 'YXZ';
-  camera.rotation.y += (currentTargetYaw - camera.rotation.y) * 0.05;
-  camera.rotation.x += (targetPitch - camera.rotation.x) * 0.05;
+  camera.rotation.y += (currentTargetYaw - camera.rotation.y) * 0.08;
+  camera.rotation.x += (targetPitch - camera.rotation.x) * 0.08;
 
   if (doorSystemFloor1) {
     doorSystemFloor1.update(raycaster, mouse, camera);
