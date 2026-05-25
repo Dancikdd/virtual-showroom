@@ -243,8 +243,30 @@ export class RoomCamera {
       const lookX = Math.sin(this.smoothYaw)  * Math.cos(this.smoothPitch);
       const lookY = Math.sin(this.smoothPitch);
       const lookZ = -Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch);
-      this.camera.position.set(0, 80, 0);
-      this.camera.lookAt(lookX * 100, 80 + lookY * 100, lookZ * 100);
+      const radius = 180;
+
+const camX =
+  Math.sin(this.smoothYaw) *
+  Math.cos(this.smoothPitch) *
+  radius;
+
+const camY =
+  160 +
+  Math.sin(this.smoothPitch) *
+  100;
+
+const camZ =
+  Math.cos(this.smoothYaw) *
+  Math.cos(this.smoothPitch) *
+  radius;
+
+this.camera.position.set(
+  camX,
+  camY,
+  camZ
+);
+
+this.camera.lookAt(0, 95, 0);
     }
   }
 

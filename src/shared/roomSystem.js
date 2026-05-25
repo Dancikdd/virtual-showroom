@@ -1,58 +1,52 @@
 // ══════════════════════════════════════════════════════════════
 //  ROOM SYSTEM — coordonator principal
-//  Încarcă modulele specifice fiecărei uși dinamic
 // ══════════════════════════════════════════════════════════════
 
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass }     from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { BokehPass }      from 'three/examples/jsm/postprocessing/BokehPass.js';
-import { ROOM_CONFIG }   from './roomConfig.js';
-import { RoomUI }        from './ui.js';
-import { RoomCamera }    from './camera.js';
-import { ModelLoader }   from './modelLoader.js';
-import { CarControls }   from './carControls.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
+import { ROOM_CONFIG } from './roomConfig.js';
+import { RoomUI } from './ui.js';
+import { RoomCamera } from './camera.js';
+import { ModelLoader } from './modelLoader.js';
+import { CarControls } from './carControls.js';
 import { GrassControls } from './grassControls.js';
-import { DoorModelManager } from '../doorManager.js';
 
-// ── Module per ușă ──
-import { AstroLights }      from '../rooms/floor1-door1/floor1-door1.lights.js';
+import { AstroLights } from '../rooms/floor1-door1/floor1-door1.lights.js';
 import { AstroEnvironment } from '../rooms/floor1-door1/floor1-door1.environment.js';
-import { GrassLights }      from '../rooms/floor1-door2/floor1-door2.lights.js';
+import { GrassLights } from '../rooms/floor1-door2/floor1-door2.lights.js';
 import { GrassEnvironment } from '../rooms/floor1-door2/floor1-door2.environment.js';
-import { CarLights }        from '../rooms/floor2-door1/floor2-door1.lights.js';
-import { CarEnvironment }   from '../rooms/floor2-door1/floor2-door1.environment.js';
+import { CarLights } from '../rooms/floor2-door1/floor2-door1.lights.js';
+import { CarEnvironment } from '../rooms/floor2-door1/floor2-door1.environment.js';
+import { SwordLights } from '../rooms/floor2-door2/floor2-door2.lights.js';
+import { SwordEnvironment } from '../rooms/floor2-door2/floor2-door2.environment.js';
+import { SwordControls } from '../rooms/floor2-door2/floor2-door2.swordControls.js';
 
-// ── Lumini globale (ambient, spot general) ──
 const GLOBAL_AMBIENT_INTENSITY = 0.8;
-
+const SWORD_DOOR_KEY = 'floor2_door_004';
 export class RoomSystem {
   constructor(renderer, onExit) {
     this.renderer = renderer;
-    this.onExit   = onExit;
-    this.active   = false;
+    this.onExit = onExit;
+    this.active = false;
 
-    this.currentModel         = null;
-    this.mixer                = null;
-    this.currentDoorKey       = null;
+    this.currentModel = null;
+    this.mixer = null;
+    this.currentDoorKey = null;
     this.currentAnimationType = 'rotate';
 
     this.clock = new THREE.Clock();
-
     this._bobY = 60;
 
-    // ── Scenă ──
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x00010a);
     this.scene.fog = new THREE.FogExp2(0x00010a, 0.00005);
 
-    // ── Lumini globale ──
     this._setupGlobalLights();
 
-    // ── Module shared ──
-    this.ui          = new RoomUI();
+    this.ui = new RoomUI();
     this.modelLoader = new ModelLoader(this.scene);
-    this.doorManager = new DoorModelManager(this.scene);
 
     this.camSystem = new RoomCamera(this.ui.overlay);
     this.camSystem.bindMouse(
@@ -60,61 +54,64 @@ export class RoomSystem {
       () => this.currentModel
     );
 
-    this.carControls  = new CarControls(() => this._toggleInterior());
+    this.carControls = new CarControls(() => this._toggleInterior());
     this.grassControls = new GrassControls();
 
-    // ── Free mouse look for grass room ──
     this._grassMouseMove = (e) => {
       if (this.currentDoorKey !== 'floor1_door_002') return;
       if (!document.pointerLockElement) return;
-      const dx = e.movementX;
-      const dy = e.movementY;
-      this.camSystem.orbitYaw   += dx * 0.002;
-      this.camSystem.orbitPitch -= dy * 0.002;
-      this.camSystem.orbitPitch  = Math.max(-1.2, Math.min(1.2, this.camSystem.orbitPitch));
+
+      this.camSystem.orbitYaw += e.movementX * 0.002;
+      this.camSystem.orbitPitch -= e.movementY * 0.002;
+      this.camSystem.orbitPitch = Math.max(-1.2, Math.min(1.2, this.camSystem.orbitPitch));
     };
+
     window.addEventListener('mousemove', this._grassMouseMove);
 
     document.addEventListener('pointerlockchange', () => {
       if (this.currentDoorKey !== 'floor1_door_002') return;
+
       if (!document.pointerLockElement) {
         this.ui.clearCursor();
         document.body.style.cursor = 'default';
       }
     });
 
-    // ── Module per ușă ──
-    this.astroLights      = new AstroLights(this.scene);
+    this.astroLights = new AstroLights(this.scene);
     this.astroEnvironment = new AstroEnvironment(this.scene);
 
-    this.grassLights      = new GrassLights(this.scene);
+    this.grassLights = new GrassLights(this.scene);
     this.grassEnvironment = new GrassEnvironment(this.scene);
     this.grassEnvironment.setLights(this.grassLights);
-    
-    this.carLights      = new CarLights(this.scene);
+
+    this.carLights = new CarLights(this.scene);
     this.carEnvironment = new CarEnvironment(this.scene);
 
-    // ── Post-processing (grass DOF blur) ──
+    this.swordLights = new SwordLights(this.scene);
+    this.swordEnvironment = new SwordEnvironment(this.scene);
+    this.swordControls = new SwordControls(this.scene);
+
     this._grassComposer = new EffectComposer(renderer);
     this._grassComposer.addPass(new RenderPass(this.scene, this.camSystem.camera));
-    this._grassComposer.addPass(new BokehPass(this.scene, this.camSystem.camera, {
-      focus:    400,
-      aperture: 0.00001,
-      maxblur:  0.004,
-    }));
+    this._grassComposer.addPass(
+      new BokehPass(this.scene, this.camSystem.camera, {
+        focus: 400,
+        aperture: 0.00001,
+        maxblur: 0.004,
+      })
+    );
 
-    // ── Stinge tot la start ──
     this.astroLights.off();
     this.grassLights.off();
     this.carLights.off();
+    this.swordLights.off();
+
     this.astroEnvironment.setVisible(false);
     this.grassEnvironment.setVisible(false);
     this.carEnvironment.setVisible(false);
+    this.swordEnvironment.setVisible(false);
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  LUMINI GLOBALE
-  // ══════════════════════════════════════════════════════════════
   _setupGlobalLights() {
     this.scene.add(new THREE.AmbientLight(0x101010, GLOBAL_AMBIENT_INTENSITY));
 
@@ -135,9 +132,6 @@ export class RoomSystem {
     this.scene.add(keyLight.target);
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  TOGGLE INTERIOR
-  // ══════════════════════════════════════════════════════════════
   _toggleInterior() {
     this.camSystem.toggleInterior(
       () => {
@@ -153,36 +147,55 @@ export class RoomSystem {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  ENTER
-  // ══════════════════════════════════════════════════════════════
   enter(doorKey) {
     if (this.active) return;
 
-    this.active               = true;
-    const config              = ROOM_CONFIG[doorKey];
-    this.currentAnimationType = config?.animation || 'rotate';
-    this.currentDoorKey       = doorKey;
+    const config = ROOM_CONFIG[doorKey];
 
-    const isCar       = this.currentAnimationType === 'car_showroom';
+    if (!config) {
+      console.error('[ROOM ERROR] Nu există config pentru:', doorKey);
+      return;
+    }
+
+    this.active = true;
+    this.currentAnimationType = config.animation || 'rotate';
+    this.currentDoorKey = doorKey;
+
+    const isCar = this.currentAnimationType === 'car_showroom';
     const isAstronaut = doorKey === 'floor1_door_001';
-    const isGrass     = doorKey === 'floor1_door_002';
+    const isGrass = doorKey === 'floor1_door_002';
+    const isSword = doorKey === SWORD_DOOR_KEY;
+
+    console.log('[ENTER ROOM]', {
+      doorKey,
+      isSword,
+      animation: this.currentAnimationType,
+      modelPath: config.modelPath,
+    });
 
     if (!isCar) this.ui.setCursorGrab();
-    else        this.ui.clearCursor();
+    else this.ui.clearCursor();
+
     this.ui.hideSystemCursor();
 
     this.carControls.reset();
     this.camSystem.reset(this.currentAnimationType);
+
+    if (isSword) {
+      this.camSystem.camera.position.set(0, 88, 165);
+      this.camSystem.camera.lookAt(0, 54, 0);
+    }
 
     if (isGrass) {
       this.camSystem.camera.position.set(0, 60, 200);
       this._bobY = 60;
       this.grassControls.enable(this.camSystem.camera);
       document.body.requestPointerLock();
+
       this._grassClickLock = () => {
         if (!document.pointerLockElement) document.body.requestPointerLock();
       };
+
       window.addEventListener('click', this._grassClickLock);
     }
 
@@ -192,21 +205,26 @@ export class RoomSystem {
       if (!this.active) return;
 
       this.camSystem.flash(this.currentAnimationType, true, () => {
-        // ── Stinge tot ──
         this.astroLights.off();
         this.grassLights.off();
         this.carLights.off();
+        this.swordLights.off();
+
         this.astroEnvironment.setVisible(false);
         this.grassEnvironment.setVisible(false);
         this.carEnvironment.setVisible(false);
+        this.swordEnvironment.setVisible(false);
+
+        this.swordControls.hide();
+
         this.scene.background = new THREE.Color(0x00010a);
         this.scene.fog = new THREE.FogExp2(0x00010a, 0.00005);
 
-        // ── Activează ce trebuie ──
         if (isAstronaut) {
           this.astroLights.on();
           this.astroEnvironment.setVisible(true);
         }
+
         if (isGrass) {
           this.grassLights.on();
           this.grassEnvironment.setVisible(true);
@@ -214,6 +232,7 @@ export class RoomSystem {
           this.scene.fog = new THREE.FogExp2(0xc8e8f0, 0.00008);
           this.ui.showGrassHint(3500);
         }
+
         if (isCar) {
           this.carLights.on();
           this.carEnvironment.setVisible(true);
@@ -222,28 +241,50 @@ export class RoomSystem {
           this.carControls.hide();
         }
 
-        // ── Model ──
+        if (isSword) {
+          this.swordLights.on();
+          this.swordEnvironment.setVisible(true);
+          this.scene.background = new THREE.Color(0x0a0010);
+          this.scene.fog = new THREE.FogExp2(0x0a0010, 0.00006);
+        }
+
         this.modelLoader.hideAll();
         this.currentModel = null;
-        this.mixer        = null;
+        this.mixer = null;
 
-        this.ui.showLabel(config?.label || doorKey);
+        this.ui.showLabel(config.label || doorKey);
 
         if (entry.object) {
           entry.object.visible = true;
-          this.currentModel    = entry.object;
-          this.mixer           = entry.mixer;
-        } else {
-          this.currentModel = null;
-          this.mixer        = null;
+          console.log(entry.object);
+          console.log(entry.object.position);
+          console.log(entry.object.scale);
+
+        entry.object.traverse((c) => {
+  if (c.isMesh) {
+    console.log('MESH:', c.name);
+  }
+        });
+          this.currentModel = entry.object;
+          this.mixer = entry.mixer;
         }
 
         if (entry.extras) {
-          entry.extras.forEach(e => { if (e?.object) e.object.visible = true; });
+          entry.extras.forEach((e) => {
+            if (e?.object) e.object.visible = true;
+          });
         }
 
         if (isCar && entry.gltf) {
           this.carControls.setupDoorAnimations(entry.gltf, this.mixer);
+        }
+
+        if (isSword && this.currentModel) {
+          this.currentModel.position.set(0, 40, 0);
+          this.currentModel.rotation.set(0, 0, 0);
+
+          this.swordControls.attach(this.currentModel);
+          this.swordControls.show();
         }
 
         this.clock.getDelta();
@@ -251,9 +292,6 @@ export class RoomSystem {
     });
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  EXIT
-  // ══════════════════════════════════════════════════════════════
   exit() {
     if (!this.active) return;
 
@@ -261,10 +299,17 @@ export class RoomSystem {
     this.ui.hideInteriorHUD();
     this.ui.hideLoading();
     this.ui.hideGrassHint();
+
     this.carControls.hide();
     this.carLights.cabinLight.intensity = 0;
+
     this.grassControls.disable();
+
+    this.swordControls.hide();
+    this.swordControls.detach();
+
     if (document.pointerLockElement) document.exitPointerLock();
+
     if (this._grassClickLock) {
       window.removeEventListener('click', this._grassClickLock);
       this._grassClickLock = null;
@@ -278,14 +323,18 @@ export class RoomSystem {
           this.currentModel.visible = false;
           this.currentModel = null;
         }
+
         this.mixer = null;
 
         this.astroLights.off();
         this.grassLights.off();
         this.carLights.off();
+        this.swordLights.off();
+
         this.astroEnvironment.setVisible(false);
         this.grassEnvironment.setVisible(false);
         this.carEnvironment.setVisible(false);
+        this.swordEnvironment.setVisible(false);
 
         this.camSystem.camera.fov = 60;
         this.camSystem.camera.updateProjectionMatrix();
@@ -293,6 +342,7 @@ export class RoomSystem {
 
         this.scene.background = new THREE.Color(0x00010a);
         this.scene.fog = new THREE.FogExp2(0x00010a, 0.00005);
+
         this.ui.clearCursor();
         this.ui.showSystemCursor();
 
@@ -303,54 +353,63 @@ export class RoomSystem {
     });
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  UPDATE LOOP
-  // ══════════════════════════════════════════════════════════════
   update(time) {
     if (!this.active) return;
 
     this.renderer.autoClear = true;
 
     const delta = Math.min(this.clock.getDelta(), 0.1);
+
     if (this.mixer) this.mixer.update(delta);
 
-    // ── Cameră ──
     if (this.currentDoorKey === 'floor1_door_002') {
       const lerpSpeed = 0.04;
-      this.camSystem.smoothYaw   += (this.camSystem.orbitYaw   - this.camSystem.smoothYaw)   * lerpSpeed;
+
+      this.camSystem.smoothYaw += (this.camSystem.orbitYaw - this.camSystem.smoothYaw) * lerpSpeed;
       this.camSystem.smoothPitch += (this.camSystem.orbitPitch - this.camSystem.smoothPitch) * lerpSpeed;
+
       const sy = this.camSystem.smoothYaw;
       const sp = this.camSystem.smoothPitch;
       const cam = this.camSystem.camera;
+
       this.grassControls.update(delta, cam);
 
       const bobTarget = this.grassControls._w
         ? 60 + Math.sin(Date.now() * 0.006) * 2.5
         : 60;
+
       this._bobY += (bobTarget - this._bobY) * 0.1;
       cam.position.y = this._bobY;
 
       cam.lookAt(
         cam.position.x + Math.sin(sy) * 100,
-        60             + Math.sin(sp) * 100,
-        cam.position.z - Math.cos(sy) * 100,
+        60 + Math.sin(sp) * 100,
+        cam.position.z - Math.cos(sy) * 100
       );
-    } else {
+    } else if (this.currentDoorKey === SWORD_DOOR_KEY) {
+
+  this.camSystem.update(
+    this.currentAnimationType,
+    this.currentModel
+  );
+
+} else {
       this.camSystem.update(this.currentAnimationType, this.currentModel);
     }
 
-    // ── Model ──
     if (this.currentModel) {
       if (this.currentAnimationType === 'orbit' && this.currentDoorKey === 'floor1_door_001') {
         const t = time * 0.18;
         this.camSystem._orbitR += (this.camSystem._orbitRTarget - this.camSystem._orbitR) * 0.08;
         this.camSystem._orbitRTarget += (170 - this.camSystem._orbitRTarget) * 0.002;
         const r = this.camSystem._orbitR;
+
         this.currentModel.position.set(
           Math.sin(t) * r,
           80 + Math.sin(t * 0.7 + 1.2) * r * 0.45,
           Math.cos(t * 0.9 + 0.5) * r
         );
+
         this.currentModel.rotation.y = time * 0.5;
         this.currentModel.rotation.x = Math.sin(time * 0.9) * 0.04;
         this.currentModel.rotation.z = Math.sin(time * 0.7 + 1.7) * 0.03;
@@ -360,10 +419,14 @@ export class RoomSystem {
 
       } else if (this.currentAnimationType === 'car_showroom') {
         this.currentModel.position.set(0, 0, 0);
+
         const cc = this.carControls;
+
         if (cc.isCarRunning && (!this.camSystem.isInsideCar || cc.isCarRunning)) {
           this.currentModel.rotation.y += cc.carRotationTarget;
         }
+
+      } else if (this.currentDoorKey === SWORD_DOOR_KEY) {
 
       } else {
         this.currentModel.position.set(0, 80, -150);
@@ -371,15 +434,14 @@ export class RoomSystem {
       }
     }
 
-    // ── Medii ──
     this.astroEnvironment.update(time);
     this.grassEnvironment.update(delta, this.camSystem.camera);
     this.carEnvironment.update(time, this.carControls.isCarRunning, this.carControls.carRotationTarget);
+    this.swordEnvironment.update(time);
+    this.swordControls.update(delta);
 
-    // ── Lumini cabin ──
     this.carLights.updateCabin(this.camSystem.isInsideCar, this.carControls.isCarRunning, time);
 
-    // ── Render ──
     if (this.currentDoorKey === 'floor1_door_002') {
       this._grassComposer.render();
     } else {
