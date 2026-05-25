@@ -39,6 +39,8 @@ export class RoomSystem {
 
     this.clock = new THREE.Clock();
 
+    this._bobY = 60;
+
     // ── Scenă ──
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x00010a);
@@ -73,17 +75,13 @@ export class RoomSystem {
     };
     window.addEventListener('mousemove', this._grassMouseMove);
 
-    // Pointer lock change — ESC pauses look, click re-locks, not exit
     document.addEventListener('pointerlockchange', () => {
       if (this.currentDoorKey !== 'floor1_door_002') return;
       if (!document.pointerLockElement) {
-        // Show the circle cursor, not the hand
         this.ui.clearCursor();
         document.body.style.cursor = 'default';
       }
     });
-
-    // Click to re-lock is added/removed per room (see enable/disable below)
 
     // ── Module per ușă ──
     this.astroLights      = new AstroLights(this.scene);
@@ -179,6 +177,7 @@ export class RoomSystem {
 
     if (isGrass) {
       this.camSystem.camera.position.set(0, 60, 200);
+      this._bobY = 60;
       this.grassControls.enable(this.camSystem.camera);
       document.body.requestPointerLock();
       this._grassClickLock = () => {
@@ -213,6 +212,7 @@ export class RoomSystem {
           this.grassEnvironment.setVisible(true);
           this.scene.background = new THREE.Color(0x87ceeb);
           this.scene.fog = new THREE.FogExp2(0xc8e8f0, 0.00008);
+          this.ui.showGrassHint(3500);
         }
         if (isCar) {
           this.carLights.on();
@@ -260,6 +260,7 @@ export class RoomSystem {
     this.ui.hideLabel();
     this.ui.hideInteriorHUD();
     this.ui.hideLoading();
+    this.ui.hideGrassHint();
     this.carControls.hide();
     this.carLights.cabinLight.intensity = 0;
     this.grassControls.disable();
@@ -322,7 +323,13 @@ export class RoomSystem {
       const sp = this.camSystem.smoothPitch;
       const cam = this.camSystem.camera;
       this.grassControls.update(delta, cam);
-      cam.position.y = 60;
+
+      const bobTarget = this.grassControls._w
+        ? 60 + Math.sin(Date.now() * 0.006) * 2.5
+        : 60;
+      this._bobY += (bobTarget - this._bobY) * 0.1;
+      cam.position.y = this._bobY;
+
       cam.lookAt(
         cam.position.x + Math.sin(sy) * 100,
         60             + Math.sin(sp) * 100,

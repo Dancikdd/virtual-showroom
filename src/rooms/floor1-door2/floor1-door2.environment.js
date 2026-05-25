@@ -6,11 +6,23 @@ import * as THREE from 'three';
 import { PetalRain }         from './PetalRain.js';
 import { GrassClouds }       from './GrassClouds.js';
 import { GrassLights, sampleSkyGradient } from './floor1-door2.lights.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFLoader }        from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { CameraBlink }       from './camera-blink.js';
 
 const GRASS_COUNT    = 600000;
 const FIELD_RADIUS   = 2500;
 const CYCLE_DURATION = 60; // seconds per full day
+
+// ── Tree world position (must match _loadTree placement) ──────
+const TREE_POS = new THREE.Vector3(0, 0, -1700);
+
+// Distance at which the blink-teleport triggers
+const BLINK_TRIGGER_DIST = 163;
+
+// Where the camera lands after the blink 
+const BLINK_TARGET_CAM = new THREE.Vector3(0, 0, -1480);
+
+const BLINK_RESPAWN = null;
 
 // ── SHADERS ────────────────────────────────────────────────
 const GRASS_VERT = `
@@ -54,9 +66,9 @@ precision mediump float;
 varying float vHeight;
 uniform float uDarkness;
 void main() {
-    vec3 baseColor = vec3(0.03, 0.18, 0.02);
-    vec3 midColor  = vec3(0.08, 0.60, 0.06);
-    vec3 tipColor  = vec3(0.22, 0.92, 0.10);
+    vec3 baseColor = vec3(0.05, 0.28, 0.04);
+    vec3 midColor  = vec3(0.12, 0.72, 0.09);
+    vec3 tipColor  = vec3(0.30, 0.98, 0.15);
     vec3 color;
     if (vHeight < 0.4) {
         color = mix(baseColor, midColor, vHeight / 0.4);
@@ -89,6 +101,11 @@ export class GrassEnvironment {
 
     this._clouds    = new GrassClouds(scene);
     this._petalRain = new PetalRain(scene);
+
+    // Blink system
+    this._blink          = new CameraBlink();
+    this._blinkCooldown  = 0;   // seconds remaining before can trigger again
+    this._BLINK_COOLDOWN = 4;   // seconds cooldown between blinks
 
     // Note: GrassLights is created by RoomSystem and passed in via setLights()
     this._lights = null;
@@ -184,6 +201,7 @@ export class GrassEnvironment {
 
           // Clone material so we don't mutate shared GLTF materials
           child.material = child.material.clone();
+          child.material.color.multiplyScalar(0.8); // darken — tune 0–1
 
           // Ensure the material supports color tinting
           if (!child.material.color) {
@@ -235,6 +253,29 @@ export class GrassEnvironment {
     cols.needsUpdate = true;
   }
 
+_checkBlinkTrigger(camera, delta) {
+  if (!this._isVisible)        return;
+  if (this._blink.busy)        return;
+  if (this._blinkCooldown > 0) {
+    this._blinkCooldown -= delta;
+    return;
+  }
+
+  const dx   = camera.position.x - TREE_POS.x;
+  const dz   = camera.position.z - TREE_POS.z;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+
+  if (dist > BLINK_TRIGGER_DIST) return;
+
+  this._blinkCooldown = this._BLINK_COOLDOWN;
+
+  this._blink.trigger(() => {}, {
+    closeMs: 110,
+    holdMs:  90,
+    openMs:  320,
+  });
+}
+
   // ── VISIBILITY ─────────────────────────────────────────────
   setVisible(v) {
     this._isVisible = v;
@@ -267,5 +308,13 @@ export class GrassEnvironment {
     }
 
     if (this._petalRain) this._petalRain.update(delta);
+
+    // ── Blink-teleport check ──────────────────────────────────
+    if (camera) this._checkBlinkTrigger(camera, delta);
+  }
+
+  // ── DISPOSE ────────────────────────────────────────────────
+  dispose() {
+    this._blink.dispose();
   }
 }

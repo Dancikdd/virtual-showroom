@@ -11,6 +11,8 @@ export class RoomUI {
     this.label             = this._createLabel();
     this.loadingIndicator  = this._createLoadingIndicator();
     this.interiorHUD       = this._createInteriorHUD();
+    this.grassHint         = this._createGrassHint();
+    this._grassHintTimer   = null;
   }
 
   // ── Cursor custom ──
@@ -117,6 +119,67 @@ export class RoomUI {
     return el;
   }
 
+  // ── Grass movement hint ──
+  _createGrassHint() {
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position: fixed;
+      bottom: 48px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(0, 0, 0, 0.38);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 12px;
+      padding: 10px 20px;
+      pointer-events: none;
+      z-index: 55;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+      white-space: nowrap;
+    `;
+
+    const key = document.createElement('span');
+    key.textContent = 'W';
+    key.style.cssText = `
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-bottom-width: 3px;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      letter-spacing: 0;
+      line-height: 1;
+      flex-shrink: 0;
+    `;
+
+    const text = document.createElement('span');
+    text.textContent = 'to move forward';
+    text.style.cssText = `
+      color: rgba(255, 255, 255, 0.80);
+      font-size: 13px;
+      font-family: sans-serif;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    `;
+
+    el.appendChild(key);
+    el.appendChild(text);
+    document.body.appendChild(el);
+    return el;
+  }
+
   // ── Helpers publice ──
   showLabel(text) {
     this.label.textContent = text;
@@ -189,5 +252,17 @@ export class RoomUI {
     document.body.style.cursor = '';
     const cc = document.getElementById('cursor');
     if (cc) cc.style.display = 'none';
+  }
+
+  // showGrassHint — apare, stă visibleMs, apoi dispare
+  showGrassHint(visibleMs = 3500) {
+    if (this._grassHintTimer) clearTimeout(this._grassHintTimer);
+    this.grassHint.style.opacity = '1';
+    this._grassHintTimer = setTimeout(() => this.hideGrassHint(), visibleMs);
+  }
+
+  hideGrassHint() {
+    this.grassHint.style.opacity = '0';
+    if (this._grassHintTimer) { clearTimeout(this._grassHintTimer); this._grassHintTimer = null; }
   }
 }

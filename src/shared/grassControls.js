@@ -2,6 +2,8 @@
 //  GRASS CONTROLS — W to walk forward in a straight line
 // ══════════════════════════════════════════════════════════════
 
+import { CameraBobbing } from './camera-bobbing.js';
+
 export class GrassControls {
   constructor() {
     this._w     = false;
@@ -10,17 +12,17 @@ export class GrassControls {
     this._startX = 0;
     this._startZ = 200;
 
-    // Tree position — match what you set in _loadTree()
     this._treeX = 0;
     this._treeZ = -1700;
-    this._teleportRadius = 150; // how close before teleport
+    this._teleportRadius = 150;
+
+    this._bob = new CameraBobbing();
 
     this._onKeyDown = (e) => { if (e.code === 'KeyW') this._w = true;  };
     this._onKeyUp   = (e) => { if (e.code === 'KeyW') this._w = false; };
   }
 
   enable(camera) {
-    // Capture starting position when room is entered
     this._startX = camera.position.x;
     this._startZ = camera.position.z;
     window.addEventListener('keydown', this._onKeyDown);
@@ -31,21 +33,23 @@ export class GrassControls {
     window.removeEventListener('keydown', this._onKeyDown);
     window.removeEventListener('keyup',   this._onKeyUp);
     this._w = false;
+    this._bob.reset();
   }
 
   update(delta, camera) {
-    if (!this._w) return;
+    if (this._w) {
+      camera.position.z -= this._speed * delta;
 
-    camera.position.z -= this._speed * delta;
+      const dx = camera.position.x - this._treeX;
+      const dz = camera.position.z - this._treeZ;
+      const dist = Math.sqrt(dx * dx + dz * dz);
 
-    // Check distance to tree
-    const dx = camera.position.x - this._treeX;
-    const dz = camera.position.z - this._treeZ;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-
-    if (dist < this._teleportRadius) {
-      camera.position.x = this._startX;
-      camera.position.z = this._startZ;
+      if (dist < this._teleportRadius) {
+        camera.position.x = this._startX;
+        camera.position.z = this._startZ;
+      }
     }
+
+    this._bob.update(delta, this._w, camera);
   }
 }
