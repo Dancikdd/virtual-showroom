@@ -24,10 +24,14 @@ import { SwordEnvironment } from '../rooms/floor2-door2/floor2-door2.environment
 import { SwordControls }    from '../rooms/floor2-door2/floor2-door2.swordControls.js';
 import { OceanLights }      from '../rooms/floor1-door3/floor1-door3.lights.js';
 import { OceanEnvironment } from '../rooms/floor1-door3/floor1-door3.environment.js';
+import { WalleLights }      from '../rooms/floor1-door4/floor1-door4.lights.js';
+import { WalleEnvironment } from '../rooms/floor1-door4/floor1-door4.environment.js';
+import { WalleHeadMove }    from '../rooms/floor1-door4/floor1-door4.headmove.js';
 
 const GLOBAL_AMBIENT_INTENSITY = 0.8;
 const SWORD_DOOR_KEY  = 'floor2_door_004';
 const OCEAN_DOOR_KEY  = 'floor1_door_003';
+const WALLE_DOOR_KEY  = 'floor1_door_004';
 
 export class RoomSystem {
   constructor(renderer, onExit) {
@@ -59,7 +63,7 @@ export class RoomSystem {
       () => this.currentDoorKey
     );
 
-    this.carControls  = new CarControls(() => this._toggleInterior());
+    this.carControls   = new CarControls(() => this._toggleInterior());
     this.grassControls = new GrassControls();
 
     this._grassMouseMove = (e) => {
@@ -90,13 +94,18 @@ export class RoomSystem {
     this.carLights      = new CarLights(this.scene);
     this.carEnvironment = new CarEnvironment(this.scene);
 
-    this.swordLights    = new SwordLights(this.scene);
+    this.swordLights      = new SwordLights(this.scene);
     this.swordEnvironment = new SwordEnvironment(this.scene);
-    this.swordControls  = new SwordControls(this.scene);
+    this.swordControls    = new SwordControls(this.scene);
 
-    this.oceanLights    = new OceanLights(this.scene);
+    this.oceanLights      = new OceanLights(this.scene);
     this.oceanEnvironment = new OceanEnvironment(this.scene);
     this.oceanEnvironment.setLights(this.oceanLights);
+
+    this.walleLights      = new WalleLights(this.scene);
+    this.walleEnvironment = new WalleEnvironment(this.scene);
+    this.walleHeadMove    = new WalleHeadMove();
+    this.walleHeadMove.setLights(this.walleLights);
 
     // ── Post-processing ───────────────────────────────────────
     this._grassComposer = new EffectComposer(renderer);
@@ -111,12 +120,14 @@ export class RoomSystem {
     this.carLights.off();
     this.swordLights.off();
     this.oceanLights.off();
+    this.walleLights.off();
 
     this.astroEnvironment.setVisible(false);
     this.grassEnvironment.setVisible(false);
     this.carEnvironment.setVisible(false);
     this.swordEnvironment.setVisible(false);
     this.oceanEnvironment.setVisible(false);
+    this.walleEnvironment.setVisible(false);
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -177,6 +188,7 @@ export class RoomSystem {
     const isGrass     = doorKey === 'floor1_door_002';
     const isSword     = doorKey === SWORD_DOOR_KEY;
     const isOcean     = doorKey === OCEAN_DOOR_KEY;
+    const isWalle     = doorKey === WALLE_DOOR_KEY;
 
     if (!isCar) this.ui.setCursorGrab();
     else        this.ui.clearCursor();
@@ -190,9 +202,13 @@ export class RoomSystem {
       this.camSystem.camera.lookAt(0, 54, 0);
     }
 
-    // ── Ocean camera: slightly below surface, looking forward ─
     if (isOcean) {
       this.camSystem.camera.position.set(0, 60, 420);
+      this.camSystem.camera.lookAt(0, 60, 0);
+    }
+
+    if (isWalle) {
+      this.camSystem.camera.position.set(0, 60, 350);
       this.camSystem.camera.lookAt(0, 60, 0);
     }
 
@@ -220,12 +236,16 @@ export class RoomSystem {
         this.carLights.off();
         this.swordLights.off();
         this.oceanLights.off();
+        this.walleLights.off();
 
         this.astroEnvironment.setVisible(false);
         this.grassEnvironment.setVisible(false);
         this.carEnvironment.setVisible(false);
         this.swordEnvironment.setVisible(false);
         this.oceanEnvironment.setVisible(false);
+        this.walleEnvironment.setVisible(false);
+
+        this.walleHeadMove.setActive(false);
 
         this.swordControls.hide();
 
@@ -264,9 +284,13 @@ export class RoomSystem {
         if (isOcean) {
           this.oceanLights.on();
           this.oceanEnvironment.setVisible(true);
-          // Deep water: dark teal background, heavy exponential fog
           this.scene.background = new THREE.Color(0x000d1a);
-          this.scene.fog = new THREE.FogExp2(0x000508, 0.0012); // era 0.00055
+          this.scene.fog = new THREE.FogExp2(0x001428, 0.00055);
+        }
+
+        if (isWalle) {
+          this.walleLights.on();
+          this.walleEnvironment.setVisible(true);
         }
 
         // ── Model ────────────────────────────────────────────
@@ -297,13 +321,16 @@ export class RoomSystem {
           this.swordControls.show();
         }
 
-            if (isOcean && this.currentModel) {
-            this.oceanEnvironment.setWhale(this.currentModel);
-            // Pornește animațiile balenei
-            if (entry.mixer) {
-              this.mixer = entry.mixer;
-            }
-          }
+        if (isOcean && this.currentModel) {
+          this.oceanEnvironment.setWhale(this.currentModel);
+        }
+
+        // ── Wall-E: pass model to head tracker ───────────────
+        if (isWalle && this.currentModel) {
+          this.currentModel.rotation.y = Math.PI; // ← adaugă asta
+          this.walleHeadMove.setModel(this.currentModel);
+          this.walleHeadMove.setActive(true);
+        }
 
         this.clock.getDelta();
       });
@@ -327,8 +354,11 @@ export class RoomSystem {
     this.swordControls.hide();
     this.swordControls.detach();
 
-    // Clear whale reference so environment stops driving it
     this.oceanEnvironment.setWhale(null);
+
+    // ── Wall-E cleanup ────────────────────────────────────────
+    this.walleHeadMove.setActive(false);
+    this.walleHeadMove.setModel(null);
 
     if (document.pointerLockElement) document.exitPointerLock();
     if (this._grassClickLock) {
@@ -351,12 +381,14 @@ export class RoomSystem {
         this.carLights.off();
         this.swordLights.off();
         this.oceanLights.off();
+        this.walleLights.off();
 
         this.astroEnvironment.setVisible(false);
         this.grassEnvironment.setVisible(false);
         this.carEnvironment.setVisible(false);
         this.swordEnvironment.setVisible(false);
         this.oceanEnvironment.setVisible(false);
+        this.walleEnvironment.setVisible(false);
 
         this.camSystem.camera.fov = 60;
         this.camSystem.camera.updateProjectionMatrix();
@@ -389,8 +421,8 @@ export class RoomSystem {
       this.camSystem.smoothYaw   += (this.camSystem.orbitYaw   - this.camSystem.smoothYaw)   * lerpSpeed;
       this.camSystem.smoothPitch += (this.camSystem.orbitPitch - this.camSystem.smoothPitch) * lerpSpeed;
 
-      const sy = this.camSystem.smoothYaw;
-      const sp = this.camSystem.smoothPitch;
+      const sy  = this.camSystem.smoothYaw;
+      const sp  = this.camSystem.smoothPitch;
       const cam = this.camSystem.camera;
 
       this.grassControls.update(delta, cam);
@@ -407,11 +439,30 @@ export class RoomSystem {
         cam.position.z - Math.cos(sy) * 100
       );
 
-    }
-      else if (this.currentDoorKey === OCEAN_DOOR_KEY) {
-    this.camSystem.update(this.currentAnimationType, this.currentModel, this.currentDoorKey);
-    } 
-    else if (this.currentDoorKey === SWORD_DOOR_KEY) {
+    } else if (this.currentDoorKey === OCEAN_DOOR_KEY) {
+      const cam    = this.camSystem.camera;
+      const driftX = Math.sin(time * 0.04) * 60;
+      const driftY = 60 + Math.sin(time * 0.07) * 18;
+      const driftZ = 420 + Math.sin(time * 0.055) * 30;
+
+      cam.position.x += (driftX - cam.position.x) * 0.012;
+      cam.position.y += (driftY - cam.position.y) * 0.012;
+      cam.position.z += (driftZ - cam.position.z) * 0.012;
+
+      if (this.currentModel) {
+        const tx = this.currentModel.position.x;
+        const ty = this.currentModel.position.y;
+        const tz = this.currentModel.position.z;
+        cam.lookAt(
+          cam.position.x + (tx - cam.position.x) * 0.08,
+          cam.position.y + (ty - cam.position.y) * 0.08,
+          cam.position.z + (tz - cam.position.z) * 0.08 - 80,
+        );
+      } else {
+        cam.lookAt(0, 60, 0);
+      }
+
+    } else if (this.currentDoorKey === SWORD_DOOR_KEY) {
       this.camSystem.update(this.currentAnimationType, this.currentModel, this.currentDoorKey);
     } else {
       this.camSystem.update(this.currentAnimationType, this.currentModel, this.currentDoorKey);
@@ -450,6 +501,8 @@ export class RoomSystem {
       } else if (this.currentDoorKey === SWORD_DOOR_KEY) {
         // Sword controls handle position
 
+      } else if (this.currentDoorKey === WALLE_DOOR_KEY) {
+
       } else {
         this.currentModel.position.set(0, 80, -150);
         this.currentModel.rotation.y = time * 0.5;
@@ -463,6 +516,8 @@ export class RoomSystem {
     this.swordEnvironment.update(time);
     this.swordControls.update(delta);
     this.oceanEnvironment.update(time);
+    this.walleEnvironment.update(time);
+    this.walleHeadMove.update(time);
 
     this.carLights.updateCabin(this.camSystem.isInsideCar, this.carControls.isCarRunning, time);
 

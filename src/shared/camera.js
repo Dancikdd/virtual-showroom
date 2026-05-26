@@ -1,12 +1,9 @@
 // ══════════════════════════════════════════════════════════════
 //  CAMERA
-//  Gestionează: orbit view, interior cockpit, flash tranziție,
-//  animație de intrare, mouse drag
 // ══════════════════════════════════════════════════════════════
 
 import * as THREE from 'three';
 
-// Offset-uri în spațiul LOCAL al mașinii
 const CAR_INTERIOR_CAM_OFFSET    = new THREE.Vector3(0, 30, 0);
 const CAR_INTERIOR_LOOKAT_OFFSET = new THREE.Vector3(0, 30, -120);
 
@@ -38,6 +35,11 @@ export class RoomCamera {
     this.raycaster = new THREE.Raycaster();
     this.mouse2D   = new THREE.Vector2();
 
+    // Stored by bindMouse — used in _onMouseDown
+    this._getAnimType      = null;
+    this._getCurrentModel  = null;
+    this._getCurrentDoorKey = null;
+
     window.addEventListener('resize', () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
@@ -45,60 +47,67 @@ export class RoomCamera {
   }
 
   // ══════════════════════════════════════════════════════════════
-  //  MOUSE EVENTS (apelat din roomSystem cu referință la model și animType)
+  //  MOUSE EVENTS
   // ══════════════════════════════════════════════════════════════
-  bindMouse(getAnimType, getCurrentModel) {
-    this._getAnimType     = getAnimType;
-    this._getCurrentModel = getCurrentModel;
+  bindMouse(getAnimType, getCurrentModel, getCurrentDoorKey) {
+    this._getAnimType       = getAnimType;
+    this._getCurrentModel   = getCurrentModel;
+    this._getCurrentDoorKey = getCurrentDoorKey;
 
     window.addEventListener('mousedown', this._onMouseDown.bind(this));
     window.addEventListener('mousemove', this._onMouseMove.bind(this));
     window.addEventListener('mouseup',   this._onMouseUp.bind(this));
   }
 
-_onMouseDown(e) {
-  const animType = this._getAnimType?.();
-  const doorKey  = this._getCurrentDoorKey?.();
+  _onMouseDown(e) {
+    const animType = this._getAnimType?.();
+    const doorKey  = this._getCurrentDoorKey?.();
 
-  if (this.isInsideCar) {
-    this.isDragging = true;
-    this.lastMouseX = e.clientX;
-    this.lastMouseY = e.clientY;
-    document.body.classList.add('room-grabbing');
-    return;
-  }
-  if (animType === 'car_showroom') return;
+    // Wall-E — camera fixed, no drag at all
+    if (doorKey === 'floor1_door_004') return;
 
-  // ── Ocean: drag direct, fără raycast ──────────────────────
-  if (doorKey === 'floor1_door_003') {
+    if (this.isInsideCar) {
+      this.isDragging = true;
+      this.lastMouseX = e.clientX;
+      this.lastMouseY = e.clientY;
+      document.body.classList.add('room-grabbing');
+      return;
+    }
+    if (animType === 'car_showroom') return;
+
+    if (doorKey === 'floor1_door_003') {
+      this.isDragging = true;
+      this.lastMouseX = e.clientX;
+      this.lastMouseY = e.clientY;
+      document.body.classList.remove('room-grab');
+      document.body.classList.add('room-grabbing');
+      return;
+    }
+
+    const model = this._getCurrentModel?.();
+    if (model && doorKey !== 'floor2_door_004') {
+      this.mouse2D.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+      this.mouse2D.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      this.raycaster.setFromCamera(this.mouse2D, this.camera);
+      if (this.raycaster.intersectObject(model, true).length > 0) {
+        this._orbitRTarget += 80;
+        return;
+      }
+    }
+
     this.isDragging = true;
     this.lastMouseX = e.clientX;
     this.lastMouseY = e.clientY;
     document.body.classList.remove('room-grab');
     document.body.classList.add('room-grabbing');
-    return;
   }
-
-  const model = this._getCurrentModel?.();
-  if (model && doorKey !== 'floor2_door_004') {
-    this.mouse2D.x =  (e.clientX / window.innerWidth)  * 2 - 1;
-    this.mouse2D.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    this.raycaster.setFromCamera(this.mouse2D, this.camera);
-    if (this.raycaster.intersectObject(model, true).length > 0) {
-      this._orbitRTarget += 80;
-      return;
-    }
-  }
-
-  this.isDragging = true;
-  this.lastMouseX = e.clientX;
-  this.lastMouseY = e.clientY;
-  document.body.classList.remove('room-grab');
-  document.body.classList.add('room-grabbing');
-}
 
   _onMouseMove(e) {
     if (!this.isDragging) return;
+    if (this._getCurrentDoorKey?.() === 'floor1_door_004') {
+      this.isDragging = false;
+      return;
+    }
     const dx = e.clientX - this.lastMouseX;
     const dy = e.clientY - this.lastMouseY;
     this.lastMouseX = e.clientX;
@@ -126,7 +135,7 @@ _onMouseDown(e) {
   }
 
   // ══════════════════════════════════════════════════════════════
-  //  RESET la fiecare enter
+  //  RESET
   // ══════════════════════════════════════════════════════════════
   reset(animType) {
     this.orbitYaw       = 0;
@@ -143,6 +152,9 @@ _onMouseDown(e) {
     if (animType === 'car_showroom') {
       this.camera.position.set(0, 60, 200);
       this.camera.lookAt(0, 20, 0);
+    } else if (animType === 'walle') {
+      this.camera.position.set(0, 80, 550);
+      this.camera.lookAt(0, 60, 0);
     } else {
       this.camera.position.set(0, 80, 250);
     }
@@ -186,13 +198,19 @@ _onMouseDown(e) {
     this.overlay.style.transition = 'none';
     this.overlay.style.opacity    = '0';
 
-    if (animType === 'car_showroom') {
+    const isWalle = this._getCurrentDoorKey?.() === 'floor1_door_004';
+
+    if (isWalle) {
+      // Camera fixă — nu mișca nimic, doar fade in/out
+      this.camera.position.set(0, 80, 550);
+      this.camera.lookAt(0, 60, 0);
+    } else if (animType === 'car_showroom') {
       this.camera.position.set(0, 60, 200);
       this.camera.lookAt(0, 20, 0);
     } else {
       this.camera.position.set(0, 80, 250);
     }
-    this.camera.fov = 75;
+    this.camera.fov = 60;
     this.camera.updateProjectionMatrix();
 
     const isCar     = animType === 'car_showroom';
@@ -207,12 +225,15 @@ _onMouseDown(e) {
         onMidpoint();
         this.overlay.style.transition = `opacity ${fadeOutMs / 1000}s ease-out`;
         this.overlay.style.opacity    = '0';
-        this._animateEntry(animType);
+        if (!isWalle) this._animateEntry(animType);
       }, fadeInMs);
     });
   }
 
   _animateEntry(animType) {
+    // Wall-E — skip fly-in animation entirely, camera is fixed
+    if (this._getCurrentDoorKey?.() === 'floor1_door_004') return;
+
     const isCar    = animType === 'car_showroom';
     const duration = isCar ? 450  : 1200;
     const startZ   = isCar ? 350  : 4000;
@@ -237,71 +258,73 @@ _onMouseDown(e) {
   }
 
   // ══════════════════════════════════════════════════════════════
-  //  UPDATE (apelat din update loop)
+  //  UPDATE
   // ══════════════════════════════════════════════════════════════
-update(animType, currentModel, doorKey) {
-  if (animType === 'car_showroom') {
-    if (this.isInsideCar && currentModel) {
-      this._updateInteriorCamera(currentModel);
+  update(animType, currentModel, doorKey) {
+    if (animType === 'car_showroom') {
+      if (this.isInsideCar && currentModel) {
+        this._updateInteriorCamera(currentModel);
+      } else {
+        this.camera.position.set(0, 60, 200);
+        this.camera.lookAt(0, 20, 0);
+      }
+
+    } else if (doorKey === 'floor1_door_004') {
+      // Wall-E — complet fix, fără nicio mișcare
+      this.orbitYaw   = 0;
+      this.orbitPitch = 0;
+      this.smoothYaw  = 0;
+      this.smoothPitch = 0;
+      this.isDragging = false;
+      this.camera.position.set(0, 100, 250);
+      this.camera.lookAt(0, 60, 0);
+
+    } else if (doorKey === 'floor1_door_001') {
+      const lerpSpeed = 0.04;
+      this.smoothYaw   += (this.orbitYaw   - this.smoothYaw)   * lerpSpeed;
+      this.smoothPitch += (this.orbitPitch - this.smoothPitch) * lerpSpeed;
+      const lookX = Math.sin(this.smoothYaw)  * Math.cos(this.smoothPitch);
+      const lookY = Math.sin(this.smoothPitch);
+      const lookZ = -Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch);
+      this.camera.position.set(0, 80, 0);
+      this.camera.lookAt(lookX * 100, 80 + lookY * 100, lookZ * 100);
+
+    } else if (doorKey === 'floor2_door_004') {
+      const lerpSpeed = 0.04;
+      this.smoothYaw   += (this.orbitYaw   - this.smoothYaw)   * lerpSpeed;
+      this.smoothPitch += (this.orbitPitch - this.smoothPitch) * lerpSpeed;
+      this.smoothPitch  = Math.max(-1.2, Math.min(1.2, this.smoothPitch));
+      const radius = 250;
+      const camX = Math.sin(this.smoothYaw) * Math.cos(this.smoothPitch) * radius;
+      const camY = 100 + Math.sin(this.smoothPitch) * radius;
+      const camZ = Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch) * radius;
+      this.camera.position.set(camX, camY, camZ);
+      this.camera.lookAt(0, 100, 0);
+
+    } else if (doorKey === 'floor1_door_003') {
+      const lerpSpeed = 0.04;
+      this.smoothYaw   += (this.orbitYaw   - this.smoothYaw)   * lerpSpeed;
+      this.smoothPitch += (this.orbitPitch - this.smoothPitch) * lerpSpeed;
+      this.smoothPitch  = Math.max(-0.8, Math.min(0.8, this.smoothPitch));
+      const radius = 340;
+      const target = { x: 0, y: 80, z: 30 };
+      const camX = target.x + Math.sin(this.smoothYaw) * Math.cos(this.smoothPitch) * radius;
+      const camY = target.y + Math.sin(this.smoothPitch) * radius;
+      const camZ = target.z + Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch) * radius;
+      this.camera.position.set(camX, camY, camZ);
+      this.camera.lookAt(target.x, target.y, target.z);
+
     } else {
-      this.camera.position.set(0, 60, 200);
-      this.camera.lookAt(0, 20, 0);
+      const lerpSpeed = 0.04;
+      this.smoothYaw   += (this.orbitYaw   - this.smoothYaw)   * lerpSpeed;
+      this.smoothPitch += (this.orbitPitch - this.smoothPitch) * lerpSpeed;
+      const lookX = Math.sin(this.smoothYaw)  * Math.cos(this.smoothPitch);
+      const lookY = Math.sin(this.smoothPitch);
+      const lookZ = -Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch);
+      this.camera.position.set(0, 80, 0);
+      this.camera.lookAt(lookX * 100, 80 + lookY * 100, lookZ * 100);
     }
-
-  } else if (doorKey === 'floor1_door_001') {
-    // Astronaut — camera fixă în centru, astronautul orbitează
-    const lerpSpeed = 0.04;
-    this.smoothYaw   += (this.orbitYaw   - this.smoothYaw)   * lerpSpeed;
-    this.smoothPitch += (this.orbitPitch - this.smoothPitch) * lerpSpeed;
-    const lookX = Math.sin(this.smoothYaw)  * Math.cos(this.smoothPitch);
-    const lookY = Math.sin(this.smoothPitch);
-    const lookZ = -Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch);
-    this.camera.position.set(0, 80, 0);
-    this.camera.lookAt(lookX * 100, 80 + lookY * 100, lookZ * 100);
-
-  } else if (doorKey === 'floor2_door_004') {
-    // Excalibur — camera orbitează în jurul sabiei
-    const lerpSpeed = 0.04;
-    this.smoothYaw   += (this.orbitYaw   - this.smoothYaw)   * lerpSpeed;
-    this.smoothPitch += (this.orbitPitch - this.smoothPitch) * lerpSpeed;
-    this.smoothPitch  = Math.max(-1.2, Math.min(1.2, this.smoothPitch));
-    const radius = 250;
-    const camX = Math.sin(this.smoothYaw) * Math.cos(this.smoothPitch) * radius;
-    const camY = 100 + Math.sin(this.smoothPitch) * radius;
-    const camZ = Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch) * radius;
-    this.camera.position.set(camX, camY, camZ);
-    this.camera.lookAt(0, 100, 0);
-
   }
-    else if (doorKey === 'floor1_door_003') {
-    const lerpSpeed = 0.04;
-    this.smoothYaw   += (this.orbitYaw   - this.smoothYaw)   * lerpSpeed;
-    this.smoothPitch += (this.orbitPitch - this.smoothPitch) * lerpSpeed;
-    this.smoothPitch  = Math.max(-0.8, Math.min(0.8, this.smoothPitch));
-
-    const radius = 340; // distanța față de balenă
-    const target = { x: 0, y: 80, z: 30 }; // poziția balenei 
-
-    const camX = target.x + Math.sin(this.smoothYaw) * Math.cos(this.smoothPitch) * radius;
-    const camY = target.y + Math.sin(this.smoothPitch) * radius;
-    const camZ = target.z + Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch) * radius;
-
-    this.camera.position.set(camX, camY, camZ);
-    this.camera.lookAt(target.x, target.y, target.z);
-  } 
-
-   else {
-    // Default — restul ușilor
-    const lerpSpeed = 0.04;
-    this.smoothYaw   += (this.orbitYaw   - this.smoothYaw)   * lerpSpeed;
-    this.smoothPitch += (this.orbitPitch - this.smoothPitch) * lerpSpeed;
-    const lookX = Math.sin(this.smoothYaw)  * Math.cos(this.smoothPitch);
-    const lookY = Math.sin(this.smoothPitch);
-    const lookZ = -Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch);
-    this.camera.position.set(0, 80, 0);
-    this.camera.lookAt(lookX * 100, 80 + lookY * 100, lookZ * 100);
-  }
-}
 
   _updateInteriorCamera(model) {
     const lerpSpeed = 0.08;

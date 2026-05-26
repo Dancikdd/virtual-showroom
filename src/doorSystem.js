@@ -4,14 +4,15 @@ const DOOR_EXCLUDES = ['frame', 'tocul', 'rama', 'casing'];
 
 const MESH_NAME_OVERRIDES = {
   'floor1:door004': 'floor1_door_002',
-  'floor1:door006': 'floor1_door_003',  // ← asta lipsea
+  'floor1:door006': 'floor1_door_003',
+  'floor1:door005': 'floor1_door_004',  
 };
 
 const DOOR_DIRECTION_OVERRIDES = {
   'floor1_door_001': -1,
   'floor1_door_002': -1,
   'floor1_door_004': -1,
-  'floor1_door_005': -1,
+  'floor1_door_005':  1,
   'floor1_door_006': -1,
   'floor2_door_001': -1,
   'floor2_door_004': -1,
@@ -22,7 +23,7 @@ const DOOR_DIRECTION_OVERRIDES = {
 const DOOR_PIVOT_OVERRIDES = {
   'floor1_door_001': 'min',
   'floor1_door_002': 'max',
-  'floor1_door_004': 'max',
+  'floor1_door_004': 'min',
   'floor1_door_005': 'min',
   'floor1_door_006': 'max',
   'floor2_door_001': 'min',
