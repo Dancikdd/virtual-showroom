@@ -55,7 +55,8 @@ export class RoomSystem {
     this.camSystem = new RoomCamera(this.ui.overlay);
     this.camSystem.bindMouse(
       () => this.currentAnimationType,
-      () => this.currentModel
+      () => this.currentModel,
+      () => this.currentDoorKey
     );
 
     this.carControls  = new CarControls(() => this._toggleInterior());
@@ -265,7 +266,7 @@ export class RoomSystem {
           this.oceanEnvironment.setVisible(true);
           // Deep water: dark teal background, heavy exponential fog
           this.scene.background = new THREE.Color(0x000d1a);
-          this.scene.fog = new THREE.FogExp2(0x001428, 0.00055);
+          this.scene.fog = new THREE.FogExp2(0x000508, 0.0012); // era 0.00055
         }
 
         // ── Model ────────────────────────────────────────────
@@ -296,11 +297,13 @@ export class RoomSystem {
           this.swordControls.show();
         }
 
-        // Hand the whale to OceanEnvironment so it can drive
-        // the swim path every frame
-        if (isOcean && this.currentModel) {
-          this.oceanEnvironment.setWhale(this.currentModel);
-        }
+            if (isOcean && this.currentModel) {
+            this.oceanEnvironment.setWhale(this.currentModel);
+            // Pornește animațiile balenei
+            if (entry.mixer) {
+              this.mixer = entry.mixer;
+            }
+          }
 
         this.clock.getDelta();
       });
@@ -404,36 +407,14 @@ export class RoomSystem {
         cam.position.z - Math.cos(sy) * 100
       );
 
-    } else if (this.currentDoorKey === OCEAN_DOOR_KEY) {
-      // Gentle underwater camera drift — slow figure-8 pan that
-      // keeps the whale in frame without needing pointer lock
-      const cam = this.camSystem.camera;
-      const driftX = Math.sin(time * 0.04) * 60;
-      const driftY = 60 + Math.sin(time * 0.07) * 18;
-      const driftZ = 420 + Math.sin(time * 0.055) * 30;
-
-      cam.position.x += (driftX - cam.position.x) * 0.012;
-      cam.position.y += (driftY - cam.position.y) * 0.012;
-      cam.position.z += (driftZ - cam.position.z) * 0.012;
-
-      // Always look at where the whale roughly is
-      if (this.currentModel) {
-        const tx = this.currentModel.position.x;
-        const ty = this.currentModel.position.y;
-        const tz = this.currentModel.position.z;
-        cam.lookAt(
-          cam.position.x + (tx - cam.position.x) * 0.08,
-          cam.position.y + (ty - cam.position.y) * 0.08,
-          cam.position.z + (tz - cam.position.z) * 0.08 - 80,
-        );
-      } else {
-        cam.lookAt(0, 60, 0);
-      }
-
-    } else if (this.currentDoorKey === SWORD_DOOR_KEY) {
-      this.camSystem.update(this.currentAnimationType, this.currentModel);
+    }
+      else if (this.currentDoorKey === OCEAN_DOOR_KEY) {
+    this.camSystem.update(this.currentAnimationType, this.currentModel, this.currentDoorKey);
+    } 
+    else if (this.currentDoorKey === SWORD_DOOR_KEY) {
+      this.camSystem.update(this.currentAnimationType, this.currentModel, this.currentDoorKey);
     } else {
-      this.camSystem.update(this.currentAnimationType, this.currentModel);
+      this.camSystem.update(this.currentAnimationType, this.currentModel, this.currentDoorKey);
     }
 
     // ── Model per-room ────────────────────────────────────────

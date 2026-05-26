@@ -58,7 +58,7 @@ export class ModelLoader {
       const cached = this.modelCache[doorKey];
       if (cached.gltf?.animations?.length > 0) {
         cached.mixer = new THREE.AnimationMixer(cached.object);
-        if (config.animation !== 'car_showroom' && config.animation !== 'ocean') {
+        if (config.animation !== 'car_showroom') {
           this._playAnimations(cached.mixer, cached.gltf.animations);
         }
       }

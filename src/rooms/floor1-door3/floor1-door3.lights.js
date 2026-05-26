@@ -91,12 +91,19 @@ export class OceanLights {
   }
 
   on() {
-    this.ambient.intensity     = 1.2;
-    this.sunShaft.intensity    = 3.5;
-    this.causticLight.intensity = 4.0;
-    this.bioLight.intensity    = 1.8;
-    this.rimLight.intensity    = 2.0;
-    this.warmAccent.intensity  = 0.8;
+    this.ambient.intensity      = 2.2;
+
+    this.sunShaft.intensity     = 6.5;
+    this.sunShaft.color.set(0x7fe7ff);
+
+    this.causticLight.intensity = 7.0;
+    this.causticLight.color.set(0x66f2ff);
+
+    this.bioLight.intensity     = 3.0;
+
+    this.rimLight.intensity     = 3.5;
+
+    this.warmAccent.intensity   = 1.4;
   }
 
   off() {
@@ -114,17 +121,15 @@ export class OceanLights {
     const cx = Math.sin(time * 0.11) * 180 + Math.sin(time * 0.27) * 80;
     const cz = Math.cos(time * 0.13) * 180 + Math.cos(time * 0.19) * 60;
     this.causticLight.position.set(cx, 900, cz);
-    this.causticLight.intensity = 3.5 + Math.sin(time * 1.7) * 0.8 + Math.sin(time * 3.1) * 0.4;
+        this.causticLight.intensity =
+        6.5 +
+        Math.sin(time * 1.7) * 1.2 +
+        Math.sin(time * 3.1) * 0.6;
 
-    // Bioluminescence slow pulse
-    this.bioLight.intensity = 1.4 + Math.sin(time * 0.6 + 1.2) * 0.6;
+        this.bioLight.intensity =
+        2.6 + Math.sin(time * 0.6 + 1.2) * 0.9;
 
-    // Sun shaft gentle sway
-    this.sunShaft.position.set(
-      0.3 + Math.sin(time * 0.08) * 0.12,
-      1,
-      0.2 + Math.cos(time * 0.06) * 0.08
-    );
-    this.sunShaft.intensity = 3.0 + Math.sin(time * 0.22) * 0.5;
-  }
+        this.sunShaft.intensity =
+        6.0 + Math.sin(time * 0.22) * 0.8;
+    }
 }
