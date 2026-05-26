@@ -5,6 +5,7 @@
 import { config as floor1door1 } from '../rooms/floor1-door1/floor1-door1.config.js';
 import { config as floor2door1 } from '../rooms/floor2-door1/floor2-door1.config.js';
 import { config as floor1door2 } from '../rooms/floor1-door2/floor1-door2.config.js';
+import { config as floor1door3 } from '../rooms/floor1-door3/floor1-door3.config.js';
 
 import { config as floor2door2 } from '../rooms/floor2-door2/floor2-door2.config.js';
 
@@ -16,7 +17,7 @@ import { SwordControls } from '../rooms/floor2-door2/floor2-door2.swordControls.
 export const ROOM_CONFIG = {
   'floor1_door_001': floor1door1,
   'floor1_door_002': floor1door2,
-  'floor1_door_003': { label: 'Produs 3',  color: 0x44ffaa, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate', showGalaxy: false },
+  'floor1_door_003': floor1door3,
   'floor1_door_004': { label: 'Produs 4',  color: 0xff8844, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate', showGalaxy: false },
   'floor1_door_005': { label: 'Produs 5',  color: 0x44aaff, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate', showGalaxy: false },
   'floor1_door_006': { label: 'Produs 6',  color: 0xffff44, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate', showGalaxy: false },

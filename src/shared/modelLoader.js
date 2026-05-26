@@ -58,7 +58,7 @@ export class ModelLoader {
       const cached = this.modelCache[doorKey];
       if (cached.gltf?.animations?.length > 0) {
         cached.mixer = new THREE.AnimationMixer(cached.object);
-        if (config.animation !== 'car_showroom') {
+        if (config.animation !== 'car_showroom' && config.animation !== 'ocean') {
           this._playAnimations(cached.mixer, cached.gltf.animations);
         }
       }
@@ -163,11 +163,16 @@ export class ModelLoader {
     const autoScale = (120 / maxDim) * config.scale;
 
     group.scale.setScalar(autoScale);
-    group.position.set(
-      -center.x * autoScale,
-      -box.min.y * autoScale + config.offsetY,
-      -center.z * autoScale
-    );
+    if (config.rawPlacement) {
+      // Let the environment module control position entirely
+      group.position.set(0, 0, 0);
+    } else {
+      group.position.set(
+        -center.x * autoScale,
+        -box.min.y * autoScale + config.offsetY,
+        -center.z * autoScale
+      );
+    }
     group.visible = false;
     this.scene.add(group);
 
