@@ -56,35 +56,46 @@ export class RoomCamera {
     window.addEventListener('mouseup',   this._onMouseUp.bind(this));
   }
 
-  _onMouseDown(e) {
-    const animType = this._getAnimType?.();
+_onMouseDown(e) {
+  const animType = this._getAnimType?.();
+  const doorKey  = this._getCurrentDoorKey?.();
 
-    if (this.isInsideCar) {
-      this.isDragging = true;
-      this.lastMouseX = e.clientX;
-      this.lastMouseY = e.clientY;
-      document.body.classList.add('room-grabbing');
-      return;
-    }
-    if (animType === 'car_showroom') return;
+  if (this.isInsideCar) {
+    this.isDragging = true;
+    this.lastMouseX = e.clientX;
+    this.lastMouseY = e.clientY;
+    document.body.classList.add('room-grabbing');
+    return;
+  }
+  if (animType === 'car_showroom') return;
 
-    const model = this._getCurrentModel?.();
-    if (model) {
-      this.mouse2D.x =  (e.clientX / window.innerWidth)  * 2 - 1;
-      this.mouse2D.y = -(e.clientY / window.innerHeight) * 2 + 1;
-      this.raycaster.setFromCamera(this.mouse2D, this.camera);
-      if (this.raycaster.intersectObject(model, true).length > 0) {
-        this._orbitRTarget += 80;
-        return;
-      }
-    }
-
+  // ── Ocean: drag direct, fără raycast ──────────────────────
+  if (doorKey === 'floor1_door_003') {
     this.isDragging = true;
     this.lastMouseX = e.clientX;
     this.lastMouseY = e.clientY;
     document.body.classList.remove('room-grab');
     document.body.classList.add('room-grabbing');
+    return;
   }
+
+  const model = this._getCurrentModel?.();
+  if (model && doorKey !== 'floor2_door_004') {
+    this.mouse2D.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+    this.mouse2D.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    this.raycaster.setFromCamera(this.mouse2D, this.camera);
+    if (this.raycaster.intersectObject(model, true).length > 0) {
+      this._orbitRTarget += 80;
+      return;
+    }
+  }
+
+  this.isDragging = true;
+  this.lastMouseX = e.clientX;
+  this.lastMouseY = e.clientY;
+  document.body.classList.remove('room-grab');
+  document.body.classList.add('room-grabbing');
+}
 
   _onMouseMove(e) {
     if (!this.isDragging) return;
@@ -228,25 +239,69 @@ export class RoomCamera {
   // ══════════════════════════════════════════════════════════════
   //  UPDATE (apelat din update loop)
   // ══════════════════════════════════════════════════════════════
-  update(animType, currentModel) {
-    if (animType === 'car_showroom') {
-      if (this.isInsideCar && currentModel) {
-        this._updateInteriorCamera(currentModel);
-      } else {
-        this.camera.position.set(0, 60, 200);
-        this.camera.lookAt(0, 20, 0);
-      }
+update(animType, currentModel, doorKey) {
+  if (animType === 'car_showroom') {
+    if (this.isInsideCar && currentModel) {
+      this._updateInteriorCamera(currentModel);
     } else {
-      const lerpSpeed = 0.04;
-      this.smoothYaw   += (this.orbitYaw   - this.smoothYaw)   * lerpSpeed;
-      this.smoothPitch += (this.orbitPitch - this.smoothPitch) * lerpSpeed;
-      const lookX = Math.sin(this.smoothYaw)  * Math.cos(this.smoothPitch);
-      const lookY = Math.sin(this.smoothPitch);
-      const lookZ = -Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch);
-      this.camera.position.set(0, 80, 0);
-      this.camera.lookAt(lookX * 100, 80 + lookY * 100, lookZ * 100);
+      this.camera.position.set(0, 60, 200);
+      this.camera.lookAt(0, 20, 0);
     }
+
+  } else if (doorKey === 'floor1_door_001') {
+    // Astronaut — camera fixă în centru, astronautul orbitează
+    const lerpSpeed = 0.04;
+    this.smoothYaw   += (this.orbitYaw   - this.smoothYaw)   * lerpSpeed;
+    this.smoothPitch += (this.orbitPitch - this.smoothPitch) * lerpSpeed;
+    const lookX = Math.sin(this.smoothYaw)  * Math.cos(this.smoothPitch);
+    const lookY = Math.sin(this.smoothPitch);
+    const lookZ = -Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch);
+    this.camera.position.set(0, 80, 0);
+    this.camera.lookAt(lookX * 100, 80 + lookY * 100, lookZ * 100);
+
+  } else if (doorKey === 'floor2_door_004') {
+    // Excalibur — camera orbitează în jurul sabiei
+    const lerpSpeed = 0.04;
+    this.smoothYaw   += (this.orbitYaw   - this.smoothYaw)   * lerpSpeed;
+    this.smoothPitch += (this.orbitPitch - this.smoothPitch) * lerpSpeed;
+    this.smoothPitch  = Math.max(-1.2, Math.min(1.2, this.smoothPitch));
+    const radius = 250;
+    const camX = Math.sin(this.smoothYaw) * Math.cos(this.smoothPitch) * radius;
+    const camY = 100 + Math.sin(this.smoothPitch) * radius;
+    const camZ = Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch) * radius;
+    this.camera.position.set(camX, camY, camZ);
+    this.camera.lookAt(0, 100, 0);
+
   }
+    else if (doorKey === 'floor1_door_003') {
+    const lerpSpeed = 0.04;
+    this.smoothYaw   += (this.orbitYaw   - this.smoothYaw)   * lerpSpeed;
+    this.smoothPitch += (this.orbitPitch - this.smoothPitch) * lerpSpeed;
+    this.smoothPitch  = Math.max(-0.8, Math.min(0.8, this.smoothPitch));
+
+    const radius = 340; // distanța față de balenă
+    const target = { x: 0, y: 80, z: 30 }; // poziția balenei 
+
+    const camX = target.x + Math.sin(this.smoothYaw) * Math.cos(this.smoothPitch) * radius;
+    const camY = target.y + Math.sin(this.smoothPitch) * radius;
+    const camZ = target.z + Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch) * radius;
+
+    this.camera.position.set(camX, camY, camZ);
+    this.camera.lookAt(target.x, target.y, target.z);
+  } 
+
+   else {
+    // Default — restul ușilor
+    const lerpSpeed = 0.04;
+    this.smoothYaw   += (this.orbitYaw   - this.smoothYaw)   * lerpSpeed;
+    this.smoothPitch += (this.orbitPitch - this.smoothPitch) * lerpSpeed;
+    const lookX = Math.sin(this.smoothYaw)  * Math.cos(this.smoothPitch);
+    const lookY = Math.sin(this.smoothPitch);
+    const lookZ = -Math.cos(this.smoothYaw) * Math.cos(this.smoothPitch);
+    this.camera.position.set(0, 80, 0);
+    this.camera.lookAt(lookX * 100, 80 + lookY * 100, lookZ * 100);
+  }
+}
 
   _updateInteriorCamera(model) {
     const lerpSpeed = 0.08;

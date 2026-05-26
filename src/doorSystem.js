@@ -2,10 +2,9 @@ import * as THREE from 'three';
 
 const DOOR_EXCLUDES = ['frame', 'tocul', 'rama', 'casing'];
 
-// Mapare manuală: mesh-uri din Blender cu număr greșit → doorKey corect
-// Format: 'floor_numar_mesh_lowercase' → 'doorKey'
 const MESH_NAME_OVERRIDES = {
   'floor1:door004': 'floor1_door_002',
+  'floor1:door006': 'floor1_door_003',  // ← asta lipsea
 };
 
 const DOOR_DIRECTION_OVERRIDES = {

@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════════════
 
 export const config = {
-  label:     'Produs 1',
+  label:     'Spatiu',
   color:     0x8844ff,
   modelPath: '/products/astronaut-animated.glb',
   scale:     1,
