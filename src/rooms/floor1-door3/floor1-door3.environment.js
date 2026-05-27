@@ -25,6 +25,7 @@ export class OceanEnvironment {
     this._createGodRays();
     this._createCausticsMesh();
     this._createBubbles();
+    this._createDarkVignette();
 
     this._lights = null;
 
@@ -40,50 +41,37 @@ export class OceanEnvironment {
 
     if (object) {
       object.position.set(0, WHALE_ORBIT_Y, 0);
-
-      console.log(
-        '[Ocean] Whale attached, scale:',
-        object.scale.x,
-        'pos:',
-        object.position
-      );
+      console.log('[Ocean] Whale attached, scale:', object.scale.x, 'pos:', object.position);
     }
   }
 
   // ── WATER VOLUME ────────────────────────────────────────────
   _createVolumeFog() {
-    const geo = new THREE.SphereGeometry(8000, 32, 16);
+    // Sferă mai mare — colțurile dispar în fog
+    const geo = new THREE.SphereGeometry(12000, 32, 16);
 
     const count = geo.attributes.position.count;
     const cols = new Float32Array(count * 3);
     const posArr = geo.attributes.position.array;
 
-    const deep = new THREE.Color(0x000000);
-    const mid = new THREE.Color(0x000d1a);
-    const surface = new THREE.Color(0x001e33);
+    const deep    = new THREE.Color(0x000000);
+    const mid     = new THREE.Color(0x000810);
+    const surface = new THREE.Color(0x000d1a);
 
     for (let i = 0; i < count; i++) {
       const y = posArr[i * 3 + 1];
+      const t = Math.max(0, Math.min(1, (y + 12000) / 24000));
 
-      const t = Math.max(
-        0,
-        Math.min(1, (y + 8000) / 16000)
-      );
+      const c = t < 0.5
+        ? deep.clone().lerp(mid, t * 2)
+        : mid.clone().lerp(surface, (t - 0.5) * 2);
 
-      const c =
-        t < 0.5
-          ? deep.clone().lerp(mid, t * 2)
-          : mid.clone().lerp(surface, (t - 0.5) * 2);
-
-      cols[i * 3] = c.r;
+      cols[i * 3]     = c.r;
       cols[i * 3 + 1] = c.g;
       cols[i * 3 + 2] = c.b;
     }
 
-    geo.setAttribute(
-      'color',
-      new THREE.BufferAttribute(cols, 3)
-    );
+    geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
 
     this._skyMesh = new THREE.Mesh(
       geo,
@@ -94,19 +82,42 @@ export class OceanEnvironment {
     );
 
     this._skyMesh.frustumCulled = false;
-
     this.scene.add(this._skyMesh);
     this.objects.push(this._skyMesh);
   }
 
-  // ── SEABED (FIXED ONLY HERE) ────────────────────────────────
+  // ── DARK VIGNETTE SHELLS ─────────────────────────────────────
+  // Sfere concentrice negre semi-transparente — întunecă marginile
+  _createDarkVignette() {
+    const radii   = [900, 1400, 2200, 3500];
+    const opacity = [0.55, 0.45, 0.35, 0.25];
+
+    radii.forEach((r, i) => {
+      const mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(r, 24, 12),
+        new THREE.MeshBasicMaterial({
+          color: 0x000000,
+          transparent: true,
+          opacity: opacity[i],
+          side: THREE.BackSide,
+          depthWrite: false,
+          blending: THREE.NormalBlending,
+        })
+      );
+      mesh.frustumCulled = false;
+      this.scene.add(mesh);
+      this.objects.push(mesh);
+    });
+  }
+
+  // ── SEABED ──────────────────────────────────────────────────
   _createSeabed() {
     const geo = new THREE.PlaneGeometry(5000, 5000, 140, 140);
     const pos = geo.attributes.position;
 
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
-      const z = pos.getY(i); // FIX: was getY(i)
+      const z = pos.getY(i);
 
       const noise =
         Math.sin(x * 0.015) * Math.cos(z * 0.013) * 6 +
@@ -144,7 +155,6 @@ export class OceanEnvironment {
         opacity: 0.12,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-
         polygonOffset: true,
         polygonOffsetFactor: -1,
         polygonOffsetUnits: -1,
@@ -186,18 +196,11 @@ export class OceanEnvironment {
     for (let i = 0; i < RAY_COUNT; i++) {
       const angle = (i / RAY_COUNT) * Math.PI * 2;
 
-      const r = 200 + (i % 3) * 80;
+      const r      = 200 + (i % 3) * 80;
       const height = 1100 + (i % 4) * 80;
-      const width = 28 + (i % 5) * 14;
+      const width  = 28 + (i % 5) * 14;
 
-      const geo = new THREE.CylinderGeometry(
-        width * 0.3,
-        width,
-        height,
-        6,
-        1,
-        true
-      );
+      const geo = new THREE.CylinderGeometry(width * 0.3, width, height, 6, 1, true);
 
       const mat = new THREE.MeshBasicMaterial({
         color: 0x00aaff,
@@ -234,25 +237,15 @@ export class OceanEnvironment {
   // ── BUBBLE TEXTURE ──────────────────────────────────────────
   _createCircleTexture() {
     const size = 128;
-
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
-
     const ctx = canvas.getContext('2d');
 
-    const gradient = ctx.createRadialGradient(
-      size / 2,
-      size / 2,
-      0,
-      size / 2,
-      size / 2,
-      size / 2
-    );
-
-    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+    gradient.addColorStop(0,   'rgba(255,255,255,1)');
     gradient.addColorStop(0.4, 'rgba(180,220,255,0.9)');
-    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    gradient.addColorStop(1,   'rgba(255,255,255,0)');
 
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, size, size);
@@ -262,46 +255,36 @@ export class OceanEnvironment {
 
   // ── BUBBLES ─────────────────────────────────────────────────
   _createBubbles() {
-    const pos = new Float32Array(BUBBLE_COUNT * 3);
+    const pos   = new Float32Array(BUBBLE_COUNT * 3);
     const sizes = new Float32Array(BUBBLE_COUNT);
 
-    this._bubbleData = Array.from(
-      { length: BUBBLE_COUNT },
-      (_, i) => {
-        const bx = (Math.random() - 0.5) * 800;
-        const bz = (Math.random() - 0.5) * 800;
-        const by = -100 + Math.random() * 800;
+    this._bubbleData = Array.from({ length: BUBBLE_COUNT }, (_, i) => {
+      const bx = (Math.random() - 0.5) * 800;
+      const bz = (Math.random() - 0.5) * 800;
+      const by = -100 + Math.random() * 800;
 
-        pos[i * 3] = bx;
-        pos[i * 3 + 1] = by;
-        pos[i * 3 + 2] = bz;
+      pos[i * 3]     = bx;
+      pos[i * 3 + 1] = by;
+      pos[i * 3 + 2] = bz;
 
-        sizes[i] = 4 + Math.random() * 6;
+      sizes[i] = 4 + Math.random() * 6;
 
-        return {
-          bx,
-          bz,
-          speed: 0.4 + Math.random() * 1.0,
-          sway: 0.3 + Math.random() * 0.5,
-          phase: Math.random() * Math.PI * 2,
-          life: Math.random(),
-          lifeSpeed: 0.003 + Math.random() * 0.006,
-        };
-      }
-    );
+      return {
+        bx, bz,
+        speed:     0.4 + Math.random() * 1.0,
+        sway:      0.3 + Math.random() * 0.5,
+        phase:     Math.random() * Math.PI * 2,
+        life:      Math.random(),
+        lifeSpeed: 0.003 + Math.random() * 0.006,
+      };
+    });
 
     const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
 
-    geo.setAttribute(
-      'position',
-      new THREE.BufferAttribute(pos, 3).setUsage(
-        THREE.DynamicDrawUsage
-      )
-    );
-
-    this._bubblePos = pos;
+    this._bubblePos  = pos;
     this._bubbleSizes = sizes;
-    this._bubbleGeo = geo;
+    this._bubbleGeo  = geo;
 
     const mat = new THREE.PointsMaterial({
       map: this._createCircleTexture(),
@@ -316,7 +299,6 @@ export class OceanEnvironment {
     });
 
     this._bubbles = new THREE.Points(geo, mat);
-
     this._bubbles.frustumCulled = false;
 
     this.scene.add(this._bubbles);
@@ -326,10 +308,7 @@ export class OceanEnvironment {
   // ── VISIBILITY ──────────────────────────────────────────────
   setVisible(v) {
     this._isVisible = v;
-
-    this.objects.forEach((o) => {
-      o.visible = v;
-    });
+    this.objects.forEach(o => { o.visible = v; });
   }
 
   // ── UPDATE ──────────────────────────────────────────────────
@@ -339,26 +318,15 @@ export class OceanEnvironment {
     this._time = time;
 
     if (this._causticsOverlay?.material?.map) {
-      this._causticsOverlay.material.map.offset.x =
-        time * 0.012;
-
-      this._causticsOverlay.material.map.offset.y =
-        time * 0.009;
-
+      this._causticsOverlay.material.map.offset.x = time * 0.012;
+      this._causticsOverlay.material.map.offset.y = time * 0.009;
       this._causticsOverlay.material.map.needsUpdate = true;
     }
 
     this._rays.forEach((r, i) => {
-      const sway =
-        Math.sin(time * 0.07 + r.baseAngle * 1.3) *
-        18;
-
+      const sway = Math.sin(time * 0.07 + r.baseAngle * 1.3) * 18;
       r.mesh.position.x = r.baseX + sway;
-
-      r.mesh.material.opacity =
-        0.03 *
-        (0.8 +
-          Math.sin(time * 0.31 + i * 0.7) * 0.2);
+      r.mesh.material.opacity = 0.03 * (0.8 + Math.sin(time * 0.31 + i * 0.7) * 0.2);
     });
 
     const bTop = 600;
@@ -366,50 +334,31 @@ export class OceanEnvironment {
     for (let i = 0; i < BUBBLE_COUNT; i++) {
       const b = this._bubbleData[i];
 
-      this._bubblePos[i * 3] =
-        b.bx +
-        Math.sin(time * b.sway + b.phase) * 14;
-
-      this._bubblePos[i * 3 + 1] +=
-        b.speed * 0.25;
-
-      this._bubblePos[i * 3 + 2] =
-        b.bz +
-        Math.cos(
-          time * b.sway * 0.8 + b.phase
-        ) *
-          10;
+      this._bubblePos[i * 3]     = b.bx + Math.sin(time * b.sway + b.phase) * 14;
+      this._bubblePos[i * 3 + 1] += b.speed * 0.25;
+      this._bubblePos[i * 3 + 2] = b.bz + Math.cos(time * b.sway * 0.8 + b.phase) * 10;
 
       if (this._bubblePos[i * 3 + 1] > bTop) {
         b.bx = (Math.random() - 0.5) * 800;
         b.bz = (Math.random() - 0.5) * 800;
-
-        this._bubblePos[i * 3] = b.bx;
-        this._bubblePos[i * 3 + 1] =
-          -400 - Math.random() * 200;
+        this._bubblePos[i * 3]     = b.bx;
+        this._bubblePos[i * 3 + 1] = -400 - Math.random() * 200;
         this._bubblePos[i * 3 + 2] = b.bz;
       }
     }
 
-    this._bubbleGeo.attributes.position.needsUpdate =
-      true;
+    this._bubbleGeo.attributes.position.needsUpdate = true;
 
     if (this._whale) {
       this._whale.position.set(
         Math.sin(time * 0.15) * 8,
-        WHALE_ORBIT_Y +
-          Math.sin(time * 0.4) * 6,
+        WHALE_ORBIT_Y + Math.sin(time * 0.4) * 6,
         Math.sin(time * 0.08) * 5
       );
 
-      this._whale.rotation.y =
-        Math.sin(time * 0.15) * 0.12;
-
-      this._whale.rotation.x =
-        Math.sin(time * 0.4) * 0.04;
-
-      this._whale.rotation.z =
-        Math.sin(time * 0.22) * 0.06;
+      this._whale.rotation.y = Math.sin(time * 0.15) * 0.12;
+      this._whale.rotation.x = Math.sin(time * 0.4)  * 0.04;
+      this._whale.rotation.z = Math.sin(time * 0.22) * 0.06;
     }
 
     if (this._lights) {

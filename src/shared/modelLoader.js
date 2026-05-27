@@ -155,6 +155,9 @@ export class ModelLoader {
   // ══════════════════════════════════════════════════════════════
   _processGltf(gltf, config) {
     const group = gltf.scene;
+    gltf.animations.forEach(clip => console.log(clip.name));
+    group.traverse(child => {
+});
 
     const box     = new THREE.Box3().setFromObject(group);
     const center  = box.getCenter(new THREE.Vector3());
