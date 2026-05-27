@@ -136,10 +136,62 @@ export class RoomUI {
     this.interiorHUD.style.opacity = '0';
   }
 
-  showLoading() {
-    this.loadingIndicator.style.opacity = '1';
-  }
+ showLoading(text = 'SE ÎNCARCĂ...') {
 
+  this.loadingIndicator.innerHTML = `
+
+    <div class="room-spinner"></div>
+
+    <div style="
+      margin-top:18px;
+      color:white;
+      font-size:14px;
+      letter-spacing:3px;
+      font-family:sans-serif;
+    ">
+      ${text}
+    </div>
+  `;
+
+  this.loadingIndicator.style.opacity = '1';
+
+  if (!document.getElementById('room-spinner-style')) {
+
+    const style = document.createElement('style');
+
+    style.id = 'room-spinner-style';
+
+    style.innerHTML = `
+
+      .room-spinner {
+
+        width: 70px;
+        height: 70px;
+
+        border-radius: 50%;
+
+        border: 5px solid rgba(255,255,255,0.15);
+
+        border-top-color: white;
+
+        animation: roomSpin 0.8s linear infinite;
+      }
+
+      @keyframes roomSpin {
+
+        from {
+          transform: rotate(0deg);
+        }
+
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+}
   hideLoading() {
     this.loadingIndicator.style.opacity = '0';
   }

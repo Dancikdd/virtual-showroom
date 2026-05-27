@@ -7,6 +7,7 @@ const MESH_NAME_OVERRIDES = {
   'floor1:door006': 'floor1_door_003',
   'floor1:door005': 'floor1_door_004',  
   'floor2:door005': 'floor2_door_003',
+  'floor2:door006': 'floor2_door_008',
 };
 const DOOR_DIRECTION_OVERRIDES = {
   'floor1_door_001': -1,

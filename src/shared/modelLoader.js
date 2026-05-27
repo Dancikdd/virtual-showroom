@@ -155,6 +155,13 @@ export class ModelLoader {
   // ══════════════════════════════════════════════════════════════
   _processGltf(gltf, config) {
     const group = gltf.scene;
+    group.traverse((child) => {
+
+  if (child.isMesh) {
+
+    console.log('MESH:', child.name);
+  }
+});
     gltf.animations.forEach(clip => console.log(clip.name));
     group.traverse(child => {
 });
