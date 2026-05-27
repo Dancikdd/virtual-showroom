@@ -35,7 +35,6 @@ export class RoomCamera {
     this.raycaster = new THREE.Raycaster();
     this.mouse2D   = new THREE.Vector2();
 
-    // Stored by bindMouse — used in _onMouseDown
     this._getAnimType      = null;
     this._getCurrentModel  = null;
     this._getCurrentDoorKey = null;
@@ -63,8 +62,8 @@ export class RoomCamera {
     const animType = this._getAnimType?.();
     const doorKey  = this._getCurrentDoorKey?.();
 
-    // Wall-E — camera fixed, no drag at all
     if (doorKey === 'floor1_door_004') return;
+    if (doorKey === 'floor2_door_003') return;
 
     if (this.isInsideCar) {
       this.isDragging = true;
@@ -105,6 +104,10 @@ export class RoomCamera {
   _onMouseMove(e) {
     if (!this.isDragging) return;
     if (this._getCurrentDoorKey?.() === 'floor1_door_004') {
+      this.isDragging = false;
+      return;
+    }
+    if (this._getCurrentDoorKey?.() === 'floor2_door_003') {
       this.isDragging = false;
       return;
     }
@@ -198,12 +201,15 @@ export class RoomCamera {
     this.overlay.style.transition = 'none';
     this.overlay.style.opacity    = '0';
 
-    const isWalle = this._getCurrentDoorKey?.() === 'floor1_door_004';
+    const isWalle     = this._getCurrentDoorKey?.() === 'floor1_door_004';
+    const isFireplace = this._getCurrentDoorKey?.() === 'floor2_door_003';
 
     if (isWalle) {
-      // Camera fixă — nu mișca nimic, doar fade in/out
       this.camera.position.set(0, 80, 550);
       this.camera.lookAt(0, 60, 0);
+    } else if (isFireplace) {
+      this.camera.position.set(0, 80, -160);
+      this.camera.lookAt(0, 40, 0);
     } else if (animType === 'car_showroom') {
       this.camera.position.set(0, 60, 200);
       this.camera.lookAt(0, 20, 0);
@@ -231,8 +237,33 @@ export class RoomCamera {
   }
 
   _animateEntry(animType) {
-    // Wall-E — skip fly-in animation entirely, camera is fixed
     if (this._getCurrentDoorKey?.() === 'floor1_door_004') return;
+
+    // ── Fireplace — zbor din Z negativ spre pozitia finala ───
+    if (this._getCurrentDoorKey?.() === 'floor2_door_003') {
+      const startZ   = -4000;
+      const endZ     = -160;
+      const duration = 1200;
+      const startFov = 72;
+      const endFov   = 60;
+      const start    = performance.now();
+
+      this.camera.position.set(0, 80, startZ);
+      this.camera.fov = startFov;
+      this.camera.updateProjectionMatrix();
+
+      const tick = (now) => {
+        const t = Math.min((now - start) / duration, 1);
+        const e = 1 - Math.pow(1 - t, 3);
+        this.camera.position.z = startZ + (endZ - startZ) * e;
+        this.camera.fov        = startFov + (endFov - startFov) * e;
+        this.camera.lookAt(0, 40, 0);
+        this.camera.updateProjectionMatrix();
+        if (t < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      return;
+    }
 
     const isCar    = animType === 'car_showroom';
     const duration = isCar ? 450  : 1200;
@@ -270,7 +301,6 @@ export class RoomCamera {
       }
 
     } else if (doorKey === 'floor1_door_004') {
-      // Wall-E — complet fix, fără nicio mișcare
       this.orbitYaw   = 0;
       this.orbitPitch = 0;
       this.smoothYaw  = 0;
@@ -278,6 +308,10 @@ export class RoomCamera {
       this.isDragging = false;
       this.camera.position.set(0, 100, 250);
       this.camera.lookAt(0, 60, 0);
+
+    } else if (doorKey === 'floor2_door_003') {
+      this.camera.position.set(0, 80, -160);
+      this.camera.lookAt(0, 40, 0);
 
     } else if (doorKey === 'floor1_door_001') {
       const lerpSpeed = 0.04;
