@@ -27,11 +27,15 @@ import { OceanEnvironment } from '../rooms/floor1-door3/floor1-door3.environment
 import { WalleLights }      from '../rooms/floor1-door4/floor1-door4.lights.js';
 import { WalleEnvironment } from '../rooms/floor1-door4/floor1-door4.environment.js';
 import { WalleHeadMove }    from '../rooms/floor1-door4/floor1-door4.headmove.js';
+import { FireplaceEnvironment } from '../rooms/floor2-door3/floor2-door3.environment.js';
+import { FireplaceLights }      from '../rooms/floor2-door3/floor2-door3.lights.js';
+import { FireControls }         from '../rooms/floor2-door3/floor2-door3.fireControls.js';
 
 const GLOBAL_AMBIENT_INTENSITY = 0.8;
-const SWORD_DOOR_KEY  = 'floor2_door_004';
-const OCEAN_DOOR_KEY  = 'floor1_door_003';
-const WALLE_DOOR_KEY  = 'floor1_door_004';
+const SWORD_DOOR_KEY     = 'floor2_door_004';
+const OCEAN_DOOR_KEY     = 'floor1_door_003';
+const WALLE_DOOR_KEY     = 'floor1_door_004';
+const FIREPLACE_DOOR_KEY = 'floor2_door_003';
 
 export class RoomSystem {
   constructor(renderer, onExit) {
@@ -107,6 +111,10 @@ export class RoomSystem {
     this.walleHeadMove    = new WalleHeadMove();
     this.walleHeadMove.setLights(this.walleLights);
 
+    this.fireplaceLights      = new FireplaceLights(this.scene);
+    this.fireplaceEnvironment = new FireplaceEnvironment(this.scene);
+    this.fireControls         = new FireControls();
+
     // ── Post-processing ───────────────────────────────────────
     this._grassComposer = new EffectComposer(renderer);
     this._grassComposer.addPass(new RenderPass(this.scene, this.camSystem.camera));
@@ -121,6 +129,7 @@ export class RoomSystem {
     this.swordLights.off();
     this.oceanLights.off();
     this.walleLights.off();
+    this.fireplaceLights.off();
 
     this.astroEnvironment.setVisible(false);
     this.grassEnvironment.setVisible(false);
@@ -128,6 +137,7 @@ export class RoomSystem {
     this.swordEnvironment.setVisible(false);
     this.oceanEnvironment.setVisible(false);
     this.walleEnvironment.setVisible(false);
+    this.fireplaceEnvironment.setVisible(false);
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -189,6 +199,7 @@ export class RoomSystem {
     const isSword     = doorKey === SWORD_DOOR_KEY;
     const isOcean     = doorKey === OCEAN_DOOR_KEY;
     const isWalle     = doorKey === WALLE_DOOR_KEY;
+    const isFireplace = doorKey === FIREPLACE_DOOR_KEY;
 
     if (!isCar) this.ui.setCursorGrab();
     else        this.ui.clearCursor();
@@ -210,6 +221,11 @@ export class RoomSystem {
     if (isWalle) {
       this.camSystem.camera.position.set(0, 60, 350);
       this.camSystem.camera.lookAt(0, 60, 0);
+    }
+
+    if (isFireplace) {
+      this.camSystem.camera.position.set(0, 80, -300);
+      this.camSystem.camera.lookAt(0, 80, 0);
     }
 
     if (isGrass) {
@@ -237,6 +253,7 @@ export class RoomSystem {
         this.swordLights.off();
         this.oceanLights.off();
         this.walleLights.off();
+        this.fireplaceLights.off();
 
         this.astroEnvironment.setVisible(false);
         this.grassEnvironment.setVisible(false);
@@ -244,10 +261,11 @@ export class RoomSystem {
         this.swordEnvironment.setVisible(false);
         this.oceanEnvironment.setVisible(false);
         this.walleEnvironment.setVisible(false);
+        this.fireplaceEnvironment.setVisible(false);
 
         this.walleHeadMove.setActive(false);
-
         this.swordControls.hide();
+        this.fireControls.hide();
 
         this.scene.background = new THREE.Color(0x00010a);
         this.scene.fog = new THREE.FogExp2(0x00010a, 0.00005);
@@ -293,6 +311,14 @@ export class RoomSystem {
           this.walleEnvironment.setVisible(true);
         }
 
+        if (isFireplace) {
+          this.fireplaceLights.on();
+          this.fireplaceEnvironment.setVisible(true);
+          this.scene.background = new THREE.Color(0x1a0a00);
+          this.scene.fog = new THREE.FogExp2(0x1a0a00, 0.00006);
+      
+        }
+
         // ── Model ────────────────────────────────────────────
         this.modelLoader.hideAll();
         this.currentModel = null;
@@ -325,14 +351,23 @@ export class RoomSystem {
           this.oceanEnvironment.setWhale(this.currentModel);
         }
 
-        // ── Wall-E: pass model to head tracker ───────────────
         if (isWalle && this.currentModel) {
-          this.currentModel.rotation.y = Math.PI; // ← adaugă asta
+          this.currentModel.rotation.y = Math.PI;
           this.walleHeadMove.setModel(this.currentModel);
           this.walleHeadMove.setActive(true);
         }
+        
 
-        this.clock.getDelta();
+       if (isFireplace && this.currentModel) {
+        console.log('FIREPLACE MODEL FOUND', this.currentModel);
+  this.currentModel.position.set(0, 0, 150);
+  this.currentModel.rotation.y = Math.PI;
+
+  this.fireControls.setModel(this.currentModel);
+  this.fireControls.show();
+}
+
+this.clock.getDelta();
       });
     });
   }
@@ -353,10 +388,10 @@ export class RoomSystem {
     this.grassControls.disable();
     this.swordControls.hide();
     this.swordControls.detach();
+    this.fireControls.hide();
 
     this.oceanEnvironment.setWhale(null);
 
-    // ── Wall-E cleanup ────────────────────────────────────────
     this.walleHeadMove.setActive(false);
     this.walleHeadMove.setModel(null);
 
@@ -382,6 +417,7 @@ export class RoomSystem {
         this.swordLights.off();
         this.oceanLights.off();
         this.walleLights.off();
+        this.fireplaceLights.off();
 
         this.astroEnvironment.setVisible(false);
         this.grassEnvironment.setVisible(false);
@@ -389,6 +425,7 @@ export class RoomSystem {
         this.swordEnvironment.setVisible(false);
         this.oceanEnvironment.setVisible(false);
         this.walleEnvironment.setVisible(false);
+        this.fireplaceEnvironment.setVisible(false);
 
         this.camSystem.camera.fov = 60;
         this.camSystem.camera.updateProjectionMatrix();
@@ -502,6 +539,11 @@ export class RoomSystem {
         // Sword controls handle position
 
       } else if (this.currentDoorKey === WALLE_DOOR_KEY) {
+        // Wall-E head movement handled by WalleHeadMove
+
+      } else if (this.currentDoorKey === FIREPLACE_DOOR_KEY) {
+        this.currentModel.position.set(0, 0, 150);
+        this.currentModel.rotation.y = Math.PI;
 
       } else {
         this.currentModel.position.set(0, 80, -150);
@@ -518,6 +560,13 @@ export class RoomSystem {
     this.oceanEnvironment.update(time);
     this.walleEnvironment.update(time);
     this.walleHeadMove.update(time);
+
+    if (this.currentDoorKey === FIREPLACE_DOOR_KEY) {
+      const fireOn = this.fireControls.enabled;
+      this.fireControls.update(time);
+      this.fireplaceEnvironment.update(time, fireOn);
+      this.fireplaceLights.update(time, fireOn);
+    }
 
     this.carLights.updateCabin(this.camSystem.isInsideCar, this.carControls.isCarRunning, time);
 

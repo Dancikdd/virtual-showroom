@@ -6,8 +6,8 @@ const MESH_NAME_OVERRIDES = {
   'floor1:door004': 'floor1_door_002',
   'floor1:door006': 'floor1_door_003',
   'floor1:door005': 'floor1_door_004',  
+  'floor2:door005': 'floor2_door_003',
 };
-
 const DOOR_DIRECTION_OVERRIDES = {
   'floor1_door_001': -1,
   'floor1_door_002': -1,
@@ -15,11 +15,11 @@ const DOOR_DIRECTION_OVERRIDES = {
   'floor1_door_005':  1,
   'floor1_door_006': -1,
   'floor2_door_001': -1,
+  'floor2_door_003': -1,
   'floor2_door_004': -1,
   'floor2_door_005': -1,
   'floor2_door_006': -1,
 };
-
 const DOOR_PIVOT_OVERRIDES = {
   'floor1_door_001': 'min',
   'floor1_door_002': 'max',
@@ -27,6 +27,7 @@ const DOOR_PIVOT_OVERRIDES = {
   'floor1_door_005': 'min',
   'floor1_door_006': 'max',
   'floor2_door_001': 'min',
+  'floor2_door_003': 'min',
   'floor2_door_004': 'max',
   'floor2_door_005': 'min',
   'floor2_door_006': 'max',
