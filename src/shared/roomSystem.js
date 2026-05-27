@@ -203,8 +203,8 @@ export class RoomSystem {
     }
 
     if (isOcean) {
-      this.camSystem.camera.position.set(0, 80, 340);
-      this.camSystem.camera.lookAt(0, 80, 0);
+      this.camSystem.camera.position.set(0, 60, 420);
+      this.camSystem.camera.lookAt(0, 60, 0);
     }
 
     if (isWalle) {
@@ -327,7 +327,7 @@ export class RoomSystem {
 
         // ── Wall-E: pass model to head tracker ───────────────
         if (isWalle && this.currentModel) {
-          this.currentModel.rotation.y = Math.PI;
+          this.currentModel.rotation.y = Math.PI; // ← adaugă asta
           this.walleHeadMove.setModel(this.currentModel);
           this.walleHeadMove.setActive(true);
         }
@@ -440,24 +440,26 @@ export class RoomSystem {
       );
 
     } else if (this.currentDoorKey === OCEAN_DOOR_KEY) {
-      // ── Ocean: orbit complet controlat de mouse ───────────
-      // camSystem.update() calculează poziția camerei via orbit (yaw/pitch/radius).
-      // Adăugăm un drift subtil pe deasupra, fără să suprascrie orbit-ul.
-      this.camSystem.update(this.currentAnimationType, this.currentModel, this.currentDoorKey);
+      const cam    = this.camSystem.camera;
+      const driftX = Math.sin(time * 0.04) * 60;
+      const driftY = 60 + Math.sin(time * 0.07) * 18;
+      const driftZ = 420 + Math.sin(time * 0.055) * 30;
 
-      // Drift subtil — mișcă ușor camera în sus/jos ca să simuleze apă
-      const cam = this.camSystem.camera;
-      cam.position.y += Math.sin(time * 0.07) * 0.15;
+      cam.position.x += (driftX - cam.position.x) * 0.012;
+      cam.position.y += (driftY - cam.position.y) * 0.012;
+      cam.position.z += (driftZ - cam.position.z) * 0.012;
 
-      // LookAt spre balenă dacă există, altfel spre centru
       if (this.currentModel) {
+        const tx = this.currentModel.position.x;
+        const ty = this.currentModel.position.y;
+        const tz = this.currentModel.position.z;
         cam.lookAt(
-          this.currentModel.position.x,
-          this.currentModel.position.y,
-          this.currentModel.position.z,
+          cam.position.x + (tx - cam.position.x) * 0.08,
+          cam.position.y + (ty - cam.position.y) * 0.08,
+          cam.position.z + (tz - cam.position.z) * 0.08 - 80,
         );
       } else {
-        cam.lookAt(0, 80, 0);
+        cam.lookAt(0, 60, 0);
       }
 
     } else if (this.currentDoorKey === SWORD_DOOR_KEY) {
@@ -494,13 +496,12 @@ export class RoomSystem {
         }
 
       } else if (this.currentDoorKey === OCEAN_DOOR_KEY) {
-        // Poziția balenei e controlată de OceanEnvironment.update()
+        // Position driven entirely by OceanEnvironment.update()
 
       } else if (this.currentDoorKey === SWORD_DOOR_KEY) {
         // Sword controls handle position
 
       } else if (this.currentDoorKey === WALLE_DOOR_KEY) {
-        // WalleHeadMove handle position
 
       } else {
         this.currentModel.position.set(0, 80, -150);
