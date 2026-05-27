@@ -214,8 +214,8 @@ export class RoomSystem {
     }
 
     if (isOcean) {
-      this.camSystem.camera.position.set(0, 60, 420);
-      this.camSystem.camera.lookAt(0, 60, 0);
+      this.camSystem.camera.position.set(0, 80, 340);
+      this.camSystem.camera.lookAt(0, 80, 0);
     }
 
     if (isWalle) {
@@ -303,7 +303,7 @@ export class RoomSystem {
           this.oceanLights.on();
           this.oceanEnvironment.setVisible(true);
           this.scene.background = new THREE.Color(0x000d1a);
-          this.scene.fog = new THREE.FogExp2(0x001428, 0.00055);
+          this.scene.fog = new THREE.FogExp2(0x000810, 0.0018);
         }
 
         if (isWalle) {
@@ -316,7 +316,6 @@ export class RoomSystem {
           this.fireplaceEnvironment.setVisible(true);
           this.scene.background = new THREE.Color(0x1a0a00);
           this.scene.fog = new THREE.FogExp2(0x1a0a00, 0.00006);
-      
         }
 
         // ── Model ────────────────────────────────────────────
@@ -356,18 +355,16 @@ export class RoomSystem {
           this.walleHeadMove.setModel(this.currentModel);
           this.walleHeadMove.setActive(true);
         }
-        
 
-       if (isFireplace && this.currentModel) {
-        console.log('FIREPLACE MODEL FOUND', this.currentModel);
-  this.currentModel.position.set(0, 0, 150);
-  this.currentModel.rotation.y = Math.PI;
+        if (isFireplace && this.currentModel) {
+          console.log('FIREPLACE MODEL FOUND', this.currentModel);
+          this.currentModel.position.set(0, 0, 150);
+          this.currentModel.rotation.y = Math.PI;
+          this.fireControls.setModel(this.currentModel);
+          this.fireControls.show();
+        }
 
-  this.fireControls.setModel(this.currentModel);
-  this.fireControls.show();
-}
-
-this.clock.getDelta();
+        this.clock.getDelta();
       });
     });
   }
@@ -477,26 +474,22 @@ this.clock.getDelta();
       );
 
     } else if (this.currentDoorKey === OCEAN_DOOR_KEY) {
-      const cam    = this.camSystem.camera;
-      const driftX = Math.sin(time * 0.04) * 60;
-      const driftY = 60 + Math.sin(time * 0.07) * 18;
-      const driftZ = 420 + Math.sin(time * 0.055) * 30;
+      // ── Ocean: orbit controlat de mouse + drift subtil ─────
+      this.camSystem.update(this.currentAnimationType, this.currentModel, this.currentDoorKey);
 
-      cam.position.x += (driftX - cam.position.x) * 0.012;
-      cam.position.y += (driftY - cam.position.y) * 0.012;
-      cam.position.z += (driftZ - cam.position.z) * 0.012;
+      // Drift subtil vertical — simulează mișcarea apei
+      const cam = this.camSystem.camera;
+      cam.position.y += Math.sin(time * 0.07) * 0.15;
 
+      // LookAt spre balenă dacă există, altfel spre centru
       if (this.currentModel) {
-        const tx = this.currentModel.position.x;
-        const ty = this.currentModel.position.y;
-        const tz = this.currentModel.position.z;
         cam.lookAt(
-          cam.position.x + (tx - cam.position.x) * 0.08,
-          cam.position.y + (ty - cam.position.y) * 0.08,
-          cam.position.z + (tz - cam.position.z) * 0.08 - 80,
+          this.currentModel.position.x,
+          this.currentModel.position.y,
+          this.currentModel.position.z,
         );
       } else {
-        cam.lookAt(0, 60, 0);
+        cam.lookAt(0, 80, 0);
       }
 
     } else if (this.currentDoorKey === SWORD_DOOR_KEY) {
@@ -533,13 +526,13 @@ this.clock.getDelta();
         }
 
       } else if (this.currentDoorKey === OCEAN_DOOR_KEY) {
-        // Position driven entirely by OceanEnvironment.update()
+        // Poziția balenei e controlată de OceanEnvironment.update()
 
       } else if (this.currentDoorKey === SWORD_DOOR_KEY) {
         // Sword controls handle position
 
       } else if (this.currentDoorKey === WALLE_DOOR_KEY) {
-        // Wall-E head movement handled by WalleHeadMove
+        // WalleHeadMove handle position
 
       } else if (this.currentDoorKey === FIREPLACE_DOOR_KEY) {
         this.currentModel.position.set(0, 0, 150);

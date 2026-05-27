@@ -306,8 +306,8 @@ export class RoomCamera {
       this.smoothYaw  = 0;
       this.smoothPitch = 0;
       this.isDragging = false;
-      this.camera.position.set(0, 100, 250);
-      this.camera.lookAt(0, 60, 0);
+      this.camera.position.set(0, 120, 250);
+      this.camera.lookAt(0, 80, 0);
 
     } else if (doorKey === 'floor2_door_003') {
       this.camera.position.set(0, 80, -160);

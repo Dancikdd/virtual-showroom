@@ -157,7 +157,6 @@ export class ModelLoader {
     const group = gltf.scene;
     gltf.animations.forEach(clip => console.log(clip.name));
     group.traverse(child => {
-  if (child.isMesh) console.log('Mesh:', child.name);
 });
 
     const box     = new THREE.Box3().setFromObject(group);
