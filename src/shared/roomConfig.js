@@ -7,11 +7,11 @@ import { config as floor1door2 } from '../rooms/floor1-door2/floor1-door2.config
 import { config as floor1door3 } from '../rooms/floor1-door3/floor1-door3.config.js';
 import { config as floor1door4 } from '../rooms/floor1-door4/floor1-door4.config.js';
 import { config as floor2door3 } from '../rooms/floor2-door3/floor2-door3.config.js';
-
+import { config as floor2door4 } from '../rooms/floor2-door4/floor2-door4.config.js';
 import { FireplaceEnvironment } from '../rooms/floor2-door3/floor2-door3.environment.js';
 
 import { FireplaceLights } from '../rooms/floor2-door3/floor2-door3.lights.js';
-
+import { TreeEnvironment } from '../rooms/floor2-door4/floor2-door4.environment.js';
 import { FireControls } from '../rooms/floor2-door3/floor2-door3.fireControls.js';
 import { config as floor2door1 } from '../rooms/floor2-door1/floor2-door1.config.js';
 import { config as floor2door2 } from '../rooms/floor2-door2/floor2-door2.config.js';
@@ -54,5 +54,9 @@ export const ROOM_CONFIG = {
   'floor2_door_005': { label: 'Produs 13', color: 0x2266ff, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate', showGalaxy: false },
   'floor2_door_006': { label: 'Produs 14', color: 0xffee22, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate', showGalaxy: false },
   'floor2_door_007': { label: 'Produs 15', color: 0xff2222, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate', showGalaxy: false },
-  'floor2_door_008': { label: 'Produs 16', color: 0x22ff22, modelPath: null, scale: 1, offsetY: 0, animation: 'rotate', showGalaxy: false },
+ 'floor2_door_008': {
+  ...floor2door4,
+
+  Environment: TreeEnvironment,
+},
 };

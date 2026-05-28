@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════════════
 
 export const config = {
-  label:     'Porsche 911 GT3 RS',
+  label:     'Mașină Showroom',
   color:     0xff6600,
   modelPath: '/products/lamborghini_centenario_lp-770_interior_sdc.glb',
   scale:     1.5,

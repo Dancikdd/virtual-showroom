@@ -12,7 +12,7 @@ import { RoomCamera } from './camera.js';
 import { ModelLoader } from './modelLoader.js';
 import { CarControls } from './carControls.js';
 import { GrassControls } from './grassControls.js';
-
+import { TreeEnvironment } from '../rooms/floor2-door4/floor2-door4.environment.js';
 import { AstroLights }      from '../rooms/floor1-door1/floor1-door1.lights.js';
 import { AstroEnvironment } from '../rooms/floor1-door1/floor1-door1.environment.js';
 import { GrassLights }      from '../rooms/floor1-door2/floor1-door2.lights.js';
@@ -78,6 +78,40 @@ export class RoomSystem {
       this.camSystem.orbitPitch  = Math.max(-1.2, Math.min(1.2, this.camSystem.orbitPitch));
     };
     window.addEventListener('mousemove', this._grassMouseMove);
+    this.raycaster = new THREE.Raycaster();
+
+this.mouse = new THREE.Vector2();
+
+window.addEventListener('mousemove', (e) => {
+
+  this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+
+  this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+  if (!this.currentModel) return;
+
+  this.raycaster.setFromCamera(
+    this.mouse,
+    this.camSystem.camera
+  );
+
+  const meshes = [];
+
+  this.currentModel.traverse((child) => {
+
+    if (child.isMesh) {
+
+      meshes.push(child);
+    }
+  });
+
+  const hits = this.raycaster.intersectObjects(meshes);
+
+  if (hits.length > 0) {
+
+    console.log('HOVER MESH:', hits[0].object.name);
+  }
+});
 
     document.addEventListener('pointerlockchange', () => {
       if (this.currentDoorKey !== 'floor1_door_002') return;
@@ -113,7 +147,24 @@ export class RoomSystem {
 
     this.fireplaceLights      = new FireplaceLights(this.scene);
     this.fireplaceEnvironment = new FireplaceEnvironment(this.scene);
+    this.treeEnvironment = new TreeEnvironment(this.scene);
     this.fireControls         = new FireControls();
+    this.isOnSwing = false;
+
+window.addEventListener('keydown', (e) => {
+
+  if (this.currentAnimationType !== 'tree_swing') return;
+
+  if (e.key.toLowerCase() === 'e') {
+
+    this.isOnSwing = true;
+  }
+
+  if (e.key.toLowerCase() === 'q') {
+
+    this.isOnSwing = false;
+  }
+});
 
     // ── Post-processing ───────────────────────────────────────
     this._grassComposer = new EffectComposer(renderer);
@@ -138,6 +189,7 @@ export class RoomSystem {
     this.oceanEnvironment.setVisible(false);
     this.walleEnvironment.setVisible(false);
     this.fireplaceEnvironment.setVisible(false);
+    this.treeEnvironment.setVisible(false);
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -200,6 +252,7 @@ export class RoomSystem {
     const isOcean     = doorKey === OCEAN_DOOR_KEY;
     const isWalle     = doorKey === WALLE_DOOR_KEY;
     const isFireplace = doorKey === FIREPLACE_DOOR_KEY;
+    const isTree = doorKey === 'floor2_door_008';
 
     if (!isCar) this.ui.setCursorGrab();
     else        this.ui.clearCursor();
@@ -227,7 +280,17 @@ export class RoomSystem {
       this.camSystem.camera.position.set(0, 80, -300);
       this.camSystem.camera.lookAt(0, 80, 0);
     }
+   
+  if (this.currentAnimationType === 'tree_swing') {
 
+  this.camSystem.camera.position.set(0, 180, 600);
+
+  this.camSystem.camera.lookAt(0, 120, 0);
+  this.camSystem.orbitEnabled = true;
+this.camSystem._orbitR = 2200;
+this.camSystem._orbitRTarget = 2200;
+this.camSystem.orbitPitch = -0.15;
+}
     if (isGrass) {
       this.camSystem.camera.position.set(0, 60, 200);
       this._bobY = 60;
@@ -240,11 +303,17 @@ export class RoomSystem {
     }
 
     this.ui.setOverlayOpaque();
+    this.ui.showLoading('Se încarcă camera...');
 
-    this.modelLoader.load(doorKey, config, (entry) => {
-      if (!this.active) return;
+this.modelLoader.load(doorKey, config, (entry) => {
 
-      this.camSystem.flash(this.currentAnimationType, true, () => {
+  if (!this.active) return;
+
+  setTimeout(() => {
+
+    this.ui.hideLoading();
+
+    this.camSystem.flash(this.currentAnimationType, true, () => {
 
         // ── Kill everything ──────────────────────────────────
         this.astroLights.off();
@@ -262,6 +331,8 @@ export class RoomSystem {
         this.oceanEnvironment.setVisible(false);
         this.walleEnvironment.setVisible(false);
         this.fireplaceEnvironment.setVisible(false);
+
+        this.treeEnvironment.setVisible(false);
 
         this.walleHeadMove.setActive(false);
         this.swordControls.hide();
@@ -317,6 +388,9 @@ export class RoomSystem {
           this.scene.background = new THREE.Color(0x1a0a00);
           this.scene.fog = new THREE.FogExp2(0x1a0a00, 0.00006);
         }
+        if (isTree) {
+  this.treeEnvironment.setVisible(true);
+}
 
         // ── Model ────────────────────────────────────────────
         this.modelLoader.hideAll();
@@ -364,9 +438,13 @@ export class RoomSystem {
           this.fireControls.show();
         }
 
-        this.clock.getDelta();
-      });
+       this.clock.getDelta();
+
     });
+
+  }, 2000);
+
+});
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -423,6 +501,7 @@ export class RoomSystem {
         this.oceanEnvironment.setVisible(false);
         this.walleEnvironment.setVisible(false);
         this.fireplaceEnvironment.setVisible(false);
+        this.treeEnvironment.setVisible(false);
 
         this.camSystem.camera.fov = 60;
         this.camSystem.camera.updateProjectionMatrix();
@@ -491,6 +570,34 @@ export class RoomSystem {
       } else {
         cam.lookAt(0, 80, 0);
       }
+} else if (this.currentAnimationType === 'tree_swing') {
+
+  const cam = this.camSystem.camera;
+
+  if (!this.isOnSwing) {
+
+    const r = 900;
+
+    const yaw = this.camSystem.orbitYaw || 0;
+
+    const pitch = this.camSystem.orbitPitch || 0;
+
+    cam.position.set(
+      Math.sin(yaw) * r,
+      180 + Math.sin(pitch) * 500,
+      Math.cos(yaw) * r
+    );
+
+    cam.lookAt(0, 80, 0);
+
+} else {
+
+  cam.position.set(0, 40, 900);
+
+cam.lookAt(0, 40, 0);
+
+  cam.rotation.z = Math.sin(time * 0.002) * 0.05;
+}
 
     } else if (this.currentDoorKey === SWORD_DOOR_KEY) {
       this.camSystem.update(this.currentAnimationType, this.currentModel, this.currentDoorKey);
@@ -538,10 +645,20 @@ export class RoomSystem {
         this.currentModel.position.set(0, 0, 150);
         this.currentModel.rotation.y = Math.PI;
 
-      } else {
-        this.currentModel.position.set(0, 80, -150);
-        this.currentModel.rotation.y = time * 0.5;
-      }
+} else if (this.currentAnimationType === 'tree_swing') {
+
+  this.currentModel.position.set(0, -180, 0);
+
+this.currentModel.scale.set(3, 3, 3);
+
+  this.currentModel.rotation.y = Math.PI;
+
+} else {
+
+  this.currentModel.position.set(0, 80, -150);
+
+  this.currentModel.rotation.y = time * 0.5;
+}
     }
 
     // ── Environment updates ───────────────────────────────────
@@ -553,6 +670,7 @@ export class RoomSystem {
     this.oceanEnvironment.update(time);
     this.walleEnvironment.update(time);
     this.walleHeadMove.update(time);
+    this.treeEnvironment.update(time);
 
     if (this.currentDoorKey === FIREPLACE_DOOR_KEY) {
       const fireOn = this.fireControls.enabled;
