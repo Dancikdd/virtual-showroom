@@ -20,6 +20,8 @@ Proiectul are scopul de a crea o experiență de tip showroom digital, unde prod
 
 ## Instalare și rulare
 ```bash
+git clone https://github.com/Dancikdd/virtual-showroom
+cd virtual-showroom
 npm install
 npm run dev
 ```
