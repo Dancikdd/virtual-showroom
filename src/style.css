@@ -18,6 +18,15 @@ canvas {
   height: 100%;
 }
 
+/* ── Custom cursor ── */
+.room-grab {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg fill='white' stroke='%23333' stroke-width='1.5'%3E%3Crect x='13' y='2' width='4' height='14' rx='2'/%3E%3Crect x='18' y='4' width='4' height='12' rx='2'/%3E%3Crect x='8' y='5' width='4' height='12' rx='2'/%3E%3Crect x='23' y='7' width='4' height='10' rx='2'/%3E%3Crect x='6' y='15' width='20' height='12' rx='3'/%3E%3C/g%3E%3C/svg%3E") 10 4, grab;
+}
+.room-grabbing {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg fill='white' stroke='%23333' stroke-width='1.5'%3E%3Crect x='8' y='10' width='4' height='10' rx='2'/%3E%3Crect x='13' y='8' width='4' height='12' rx='2'/%3E%3Crect x='18' y='8' width='4' height='12' rx='2'/%3E%3Crect x='23' y='10' width='4' height='10' rx='2'/%3E%3Crect x='6' y='18' width='20' height='10' rx='3'/%3E%3C/g%3E%3C/svg%3E") 10 4, grabbing;
+}
+
+/* ── Custom dot cursor ── */
 #cursor {
   position: fixed;
   width: 8px;
@@ -29,6 +38,7 @@ canvas {
   z-index: 9999;
 }
 
+/* ── Info box ── */
 #info-box {
   position: fixed;
   display: none;
@@ -46,6 +56,7 @@ canvas {
   white-space: nowrap;
 }
 
+/* ── Floor indicator ── */
 #floor-indicator {
   position: fixed;
   top: 18px;
@@ -61,6 +72,7 @@ canvas {
     0 0 12px rgba(0, 0, 0, 0.7);
 }
 
+/* ── Navigation container ── */
 #nav-container {
   position: fixed;
   bottom: 40px;
@@ -96,6 +108,7 @@ canvas {
   height: 100%;
 }
 
+/* ── Door actions ── */
 #door-actions {
   position: fixed;
   top: 70%;
@@ -133,6 +146,7 @@ canvas {
   height: 100%;
 }
 
+/* ── Elevator UI ── */
 #elevator-ui {
   position: fixed;
   right: 40px;
@@ -167,4 +181,124 @@ canvas {
 #elevator-ui button:active {
   transform: scale(0.96);
   background: rgba(140, 140, 140, 1);
+}
+
+/* ── RoomUI: overlay (fade negru) ── */
+#room-overlay {
+  position: fixed;
+  inset: 0;
+  background: #00010a;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 100;
+  transition: none;
+}
+
+/* ── RoomUI: label produs ── */
+#room-label {
+  position: fixed;
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: white;
+  font-size: 22px;
+  font-family: sans-serif;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  z-index: 50;
+  pointer-events: none;
+}
+
+/* ── RoomUI: loading indicator ── */
+#room-loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ff6600;
+  font-size: 16px;
+  font-family: sans-serif;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  opacity: 0;
+  z-index: 200;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  text-align: center;
+}
+
+#room-loading .loading-icon {
+  margin-bottom: 12px;
+  font-size: 28px;
+}
+
+/* ── RoomUI: interior HUD / vignette ── */
+#room-interior-hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+#room-interior-hud .vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 45%,
+    rgba(0, 0, 0, 0.4) 75%,
+    rgba(0, 0, 0, 0.82) 100%
+  );
+}
+
+/* ── RoomUI: grass movement hint ── */
+#room-grass-hint {
+  position: fixed;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 12px;
+  padding: 10px 20px;
+  pointer-events: none;
+  z-index: 55;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  white-space: nowrap;
+}
+
+#room-grass-hint .hint-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-bottom-width: 3px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+#room-grass-hint .hint-text {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  font-family: sans-serif;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
 }

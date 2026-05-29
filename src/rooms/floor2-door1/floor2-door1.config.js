@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════════════
 
 export const config = {
-  label:     'Mașină Showroom',
+  label:     'Lamborghini',
   color:     0xff6600,
   modelPath: '/products/lamborghini_centenario_lp-770_interior_sdc.glb',
   scale:     1.5,
